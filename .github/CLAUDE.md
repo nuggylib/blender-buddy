@@ -14,4 +14,6 @@ GitHub-specific configuration for the repository.
   (`uv sync`, `uv run pytest`, `uv run ruff ...`) so "green locally" means "green in CI."
 - Use `uv sync --locked` in CI so a stale `uv.lock` fails the build instead of silently
   resolving different dependencies.
-- Pin actions to a major version tag (e.g. `@v8`); bump deliberately.
+- Pin actions to a specific release, not a moving major tag. `astral-sh/setup-uv`'s v8
+  series does **not** publish a floating `v8` tag (only `v8.x.y`), so pin the exact
+  version (e.g. `@v8.3.2`) and bump deliberately.
