@@ -15,3 +15,11 @@
      Assume the reviewer has the branch checked out and the app running. -->
 
 1.
+
+## QA Sign-off
+
+<!-- Tick the box below only after you have run the QA Steps above and confirmed they pass.
+     The "QA Sign-off" CI check stays red until it is ticked, and merging to main is blocked
+     while it is red. Keep the "**Author:**" wording in sync with .github/workflows/qa_signoff.yml. -->
+
+- [ ] **Author:** I have run the QA Steps above and verified they pass.

@@ -48,3 +48,20 @@ During UI development, `uv run textual run --dev blender_buddy.app:BlenderBuddyA
 enables live CSS editing, and `uv run textual console` (in a second terminal)
 captures log output.
 
+### Building a standalone binary
+
+CI produces the downloadable per-OS builds, but you can build one locally to
+verify packaging:
+
+```bash
+# Build the onedir bundle (uses the committed blender-buddy.spec)
+uv run --frozen --group build pyinstaller blender-buddy.spec
+
+# Smoke-test the frozen binary: --check boots the app headlessly, exit 0 == OK
+./dist/blender-buddy/blender-buddy --check
+./dist/blender-buddy/blender-buddy --version
+```
+
+The build writes to `dist/` and `build/` (both gitignored). `--check` is the
+same launch gate CI runs against every build before it ships.
+
