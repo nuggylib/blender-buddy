@@ -1,0 +1,10 @@
+/* Application-level styles for Blender Buddy. */
+
+DashboardScreen {
+    align: center middle;
+}
+
+DashboardScreen > Static {
+    width: auto;
+    padding: 1 2;
+}
