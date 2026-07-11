@@ -7,6 +7,9 @@ GitHub-specific configuration for the repository.
 - `workflows/lint_and_test.yml` — Continuous integration ("Lint & Test" workflow). Runs the `ruff` lint/format gate and the
   `pytest` suite on every push to `main` and every pull request, using the project's `uv`
   toolchain via `astral-sh/setup-uv`.
+- `pull_request_template.md` — Default pull request description template. Pre-fills every new PR with a
+  **Summary** (plus a flat **Changelog** list) and numbered **manual QA Steps** for the reviewer.
+  GitHub auto-populates the PR body from this file.
 
 ## Conventions
 
