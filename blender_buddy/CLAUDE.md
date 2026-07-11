@@ -13,6 +13,9 @@ this package sits at the repository root, not under `src/`).
 
 ## Subpackages (categories)
 - `tui/` — Textual screens and widgets.
+- `config/` — persistence: the on-disk config first-time setup writes and every
+  launch reads (`Settings`, path resolution, atomic load/save). No Textual, no I/O
+  beyond the config file.
 - `blender/` — (stub) future connection/IPC with a live Blender scene.
 
 ## Conventions
