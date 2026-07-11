@@ -10,3 +10,8 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+
+# PyInstaller — build-time artifacts, never committed
+/build/
+/dist/
+blender_buddy/_version.py
