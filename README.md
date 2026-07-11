@@ -22,3 +22,29 @@ even identical) setup. It was built for use with Godot.
    - _Verify meshes are linked to the correct bone_
    - _Verify vertex group weights are correct_
 
+## Development
+
+Blender Buddy uses [uv](https://docs.astral.sh/uv/) for dependency and
+environment management. Requires Python 3.11+ (uv will fetch it automatically).
+
+```bash
+# Install dependencies (runtime + dev) into a local virtual environment
+uv sync
+
+# Launch the TUI
+uv run blender-buddy
+# ...or equivalently
+uv run python -m blender_buddy
+
+# Run the test suite
+uv run pytest
+
+# Lint and format
+uv run ruff check .
+uv run ruff format .
+```
+
+During UI development, `uv run textual run --dev blender_buddy.app:BlenderBuddyApp`
+enables live CSS editing, and `uv run textual console` (in a second terminal)
+captures log output.
+
