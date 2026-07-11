@@ -21,6 +21,10 @@ code within the `/src` directory.
    meaningfully (new files, changed responsibilities, new patterns), make a genuine attempt to update
    that directory's `CLAUDE.md` so the documentation stays accurate.
 
+### Feature Development Practices
+
+Keep PRs as small as possible by ensuring each branch is purpose-built for a specific sub-task of a feature.
+
 ## General Workflow
 
 > This workflow is intended to fast-track development of many similar models that leverage a similar
