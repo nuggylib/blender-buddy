@@ -14,7 +14,6 @@ permissions:
 
 jobs:
   lint-and-test:
-    name: Lint & Test (Python 3.11)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
