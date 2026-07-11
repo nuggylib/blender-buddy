@@ -13,8 +13,8 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Test (Python 3.11)
+  lint-and-test:
+    name: Lint & Test (Python 3.11)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
