@@ -1,0 +1,199 @@
+name: Build
+
+# Builds a downloadable standalone binary for all four targets on every PR
+# (canary artifacts a reviewer can QA) and every push to main (release-named
+# artifacts Phase 3's release.yml will sign + publish). This workflow holds NO
+# secrets: it runs on untrusted fork PRs, so nothing sensitive lives here. macOS
+# binaries get an *ad-hoc* signature only (enough for Apple Silicon canaries to
+# execute); Developer ID signing + notarization happen later in release.yml.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**/*.md", "docs/**"]
+  pull_request:
+    paths-ignore: ["**/*.md", "docs/**"]
+
+# Cancel superseded PR pushes, but never cancel a main build (a rolling release
+# must build from the exact tip that was merged).
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Floor: read-only. No job here needs more (upload-artifact uses the Actions
+# runtime token, not a `contents` scope).
+permissions:
+  contents: read
+
+jobs:
+  # Resolve the version string ONCE so all four legs embed an identical string
+  # for a single commit (computing it inline per-leg risks four binaries with
+  # four different strings). The per-leg _version.py *write* still happens in the
+  # build job — the file must exist at freeze time.
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      embedded: ${{ steps.compute.outputs.embedded }}
+      slug: ${{ steps.compute.outputs.slug }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Compute version strings
+        id: compute
+        env:
+          # PR events: github.sha is the ephemeral merge commit, so use the PR
+          # head sha for the real code under review.
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_SHA: ${{ github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          base="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            short="${PR_HEAD_SHA:0:7}"
+            # SemVer: pre-release lowers precedence; +build metadata is the SHA's home.
+            embedded="${base}-canary.pr${PR_NUMBER}+${short}"
+            # Filename slug: only '-' (no '+'/'.', which break in URLs/tooling).
+            slug="canary-pr${PR_NUMBER}-${short}"
+          else
+            short="${PUSH_SHA:0:7}"
+            embedded="${base}-dev.${RUN_NUMBER}+${short}"
+            slug="dev-${short}"
+          fi
+          echo "embedded=$embedded" >> "$GITHUB_OUTPUT"
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $embedded (slug: $slug)"
+
+  build:
+    needs: version
+    strategy:
+      # See every broken target instead of masking three behind the first
+      # failure. (A partial matrix must never publish a release — enforced later
+      # by release.yml requiring all four; canaries are allowed to be partial.)
+      fail-fast: false
+      matrix:
+        include:
+          - target: macos-arm64
+            os: macos-14 # Apple Silicon
+            ext: ""
+          - target: macos-x86_64
+            os: macos-13 # last Intel macOS runner (deprecation risk — see plan I8)
+            ext: ""
+          - target: linux-x86_64
+            os: ubuntu-latest
+            ext: ""
+          - target: windows-x86_64
+            os: windows-latest
+            ext: ".exe"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    defaults:
+      run:
+        # Identical ${VAR:0:7}/globbing/tar on Windows too.
+        shell: bash
+    env:
+      EMBEDDED_VERSION: ${{ needs.version.outputs.embedded }}
+      SLUG: ${{ needs.version.outputs.slug }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          enable-cache: true
+          # setup-uv's auto cache key already includes OS/arch/python, so the
+          # four legs get distinct caches without a cache-suffix.
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Install Python
+        run: uv python install
+
+      - name: Install build dependencies
+        run: uv sync --frozen --no-dev --group build
+
+      - name: Write _version.py
+        run: |
+          set -euo pipefail
+          printf '__version__ = "%s"\n' "$EMBEDDED_VERSION" > blender_buddy/_version.py
+
+      - name: Build (PyInstaller onedir)
+        env:
+          # Nudges toward a reproducible build; the unsigned artifact is the hash
+          # anchor even though "mostly deterministic" is the realistic bar.
+          PYTHONHASHSEED: "0"
+        run: |
+          set -euo pipefail
+          export SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
+          uv run --frozen --no-dev --group build pyinstaller --noconfirm blender-buddy.spec
+
+      - name: Ad-hoc sign (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          # onedir bundles nested Mach-O files; sign inner-to-outer, launcher
+          # last. Ad-hoc (--sign -) is enough for canaries to *execute* on Apple
+          # Silicon after clearing quarantine. No --deep (deprecated); no
+          # hardened runtime/timestamp (that's the notarization path in 3b).
+          find dist/blender-buddy -type f \( -name '*.so' -o -name '*.dylib' \) -print0 |
+            while IFS= read -r -d '' f; do
+              codesign --force --sign - "$f"
+            done
+          codesign --force --sign - dist/blender-buddy/blender-buddy
+          codesign --verify --strict --verbose=2 dist/blender-buddy/blender-buddy
+
+      - name: Smoke test (does it launch?)
+        run: |
+          set -euo pipefail
+          # Run the freshly built binary for THIS target (arm64 can't run on the
+          # x86 leg). --check mounts headlessly, forcing app.tcss to parse and
+          # the import graph to resolve — the one load-bearing gate.
+          "./dist/blender-buddy/blender-buddy${{ matrix.ext }}" --version
+          "./dist/blender-buddy/blender-buddy${{ matrix.ext }}" --check
+
+      - name: Package archive
+        id: package
+        run: |
+          set -euo pipefail
+          archive="blender-buddy-${SLUG}-${{ matrix.target }}"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            file="${archive}.zip"
+            # 7z is preinstalled on windows-latest; zips the onedir tree with a
+            # top-level blender-buddy/ folder.
+            (cd dist && 7z a -tzip "../${file}" blender-buddy >/dev/null)
+          else
+            # tar.gz preserves the execute bit (and the ad-hoc signature, which
+            # lives inside the Mach-O, not an xattr).
+            file="${archive}.tar.gz"
+            tar czf "${file}" -C dist blender-buddy
+          fi
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+
+      # PR: canary-named, kept 14 days so a longer review still has a live link.
+      - name: Upload canary artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: blender-buddy-${{ env.SLUG }}-${{ matrix.target }}
+          path: ${{ steps.package.outputs.file }}
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0 # already a compressed archive
+
+      # Push to main: stable release-named, short retention — release.yml
+      # (Phase 3) fetches these by run-id to sign and publish.
+      - name: Upload release artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ matrix.target }}
+          path: ${{ steps.package.outputs.file }}
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 0

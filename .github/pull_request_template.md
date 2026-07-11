@@ -12,7 +12,9 @@
 ## QA Steps
 
 <!-- Numbered, manual steps a reviewer can follow to verify these changes.
-     Assume the reviewer has the branch checked out and the app running. -->
+     Assume the reviewer has the branch checked out and the app running.
+     No Python? Download the built canary from this PR's "Build" run —
+     Checks tab > Build > Artifacts — extract, and run it instead. -->
 
 1.
 
