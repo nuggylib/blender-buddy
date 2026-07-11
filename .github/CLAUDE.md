@@ -4,7 +4,7 @@ GitHub-specific configuration for the repository.
 
 ## Contents
 
-- `workflows/ci.yml` — Continuous integration. Runs the `ruff` lint/format gate and the
+- `workflows/lint_and_test.yml` — Continuous integration ("Lint & Test" workflow). Runs the `ruff` lint/format gate and the
   `pytest` suite on every push to `main` and every pull request, using the project's `uv`
   toolchain via `astral-sh/setup-uv`.
 
