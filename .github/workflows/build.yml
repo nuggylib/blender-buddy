@@ -177,6 +177,7 @@ jobs:
 
       # PR: canary-named, kept 14 days so a longer review still has a live link.
       - name: Upload canary artifact
+        id: upload_canary
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -185,6 +186,24 @@ jobs:
           retention-days: 14
           if-no-files-found: error
           compression-level: 0 # already a compressed archive
+
+      # Surface a rendered, one-click download link on the run's Summary page so
+      # a reviewer never has to expand logs. artifact-url needs a signed-in
+      # GitHub session (Actions artifacts have no public URL) and 404s once the
+      # 14-day retention lapses. Each matrix leg contributes its own line, so all
+      # targets land together on the run Summary.
+      - name: Link canary download in run summary
+        if: github.event_name == 'pull_request'
+        env:
+          TARGET: ${{ matrix.target }}
+          ART_URL: ${{ steps.upload_canary.outputs.artifact-url }}
+        run: |
+          {
+            echo "### ⬇️ Canary download — \`$TARGET\`"
+            echo ""
+            echo "[Download the \`$TARGET\` canary]($ART_URL) — sign in to GitHub, then unzip"
+            echo "the wrapper to get the \`.tar.gz\`/\`.zip\`. Link dies after 14 days; re-run to refresh."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # Push to main: stable release-named, short retention — release.yml
       # (Phase 3) fetches these by run-id to sign and publish.

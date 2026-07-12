@@ -16,7 +16,10 @@ GitHub-specific configuration for the repository.
   runs `pyinstaller blender-buddy.spec` (onedir), gates on the `--version`/`--check` smoke test against
   the freshly built binary, ad-hoc signs the macOS binaries (arm64 canaries execute; **no** Developer
   ID / notarization here — that is Phase 3's `release.yml`), and packages the onedir tree per-OS
-  (`.tar.gz` on Unix, `.zip` on Windows). **Holds no secrets** — it runs on untrusted fork PRs.
+  (`.tar.gz` on Unix, `.zip` on Windows). On PRs each leg writes a one-click download link to the
+  run **Summary** (via `upload-artifact`'s `artifact-url` + `$GITHUB_STEP_SUMMARY`) so a reviewer
+  never has to expand logs — Actions artifacts have no public URL, so the link needs a signed-in
+  session and dies with the 14-day retention. **Holds no secrets** — it runs on untrusted fork PRs.
 - `workflows/qa_signoff.yml` — "QA Sign-off" workflow. Fails a PR until the author ticks the
   **Author** checkbox in the `## QA Sign-off` section of the PR body — the developer's explicit
   "I ran the QA Steps and they pass" acknowledgement. It reads the body from the event payload
