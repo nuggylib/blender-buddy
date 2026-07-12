@@ -7,9 +7,11 @@ GitHub-specific configuration for the repository.
 - `workflows/lint_and_test.yml` — Continuous integration ("Lint & Test" workflow). Runs the `ruff` lint/format gate and the
   `pytest` suite on every push to `main` and every pull request, using the project's `uv`
   toolchain via `astral-sh/setup-uv`.
-- `workflows/build.yml` — "Build" workflow. Builds a standalone binary for all four targets
-  (`macos-14`/arm64, `macos-13`/x86_64, `ubuntu-latest`, `windows-latest`) on every PR and every
-  push to `main`. A `version` job resolves the embedded version string **once** (so all four legs
+- `workflows/build.yml` — "Build" workflow. Builds a standalone binary for three targets
+  (`macos-14`/arm64, `ubuntu-latest`, `windows-latest`) on every PR and every
+  push to `main`. macOS is **Apple Silicon only** — the Intel runner (`macos-13`) is a deprecated,
+  scarce image that queues for many minutes (plan I8); Intel Mac users run the arm64 build under
+  Rosetta 2. A `version` job resolves the embedded version string **once** (so all legs
   embed the same string for a commit); each build leg writes the gitignored `blender_buddy/_version.py`,
   runs `pyinstaller blender-buddy.spec` (onedir), gates on the `--version`/`--check` smoke test against
   the freshly built binary, ad-hoc signs the macOS binaries (arm64 canaries execute; **no** Developer

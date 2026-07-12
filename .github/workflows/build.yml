@@ -71,17 +71,17 @@ jobs:
   build:
     needs: version
     strategy:
-      # See every broken target instead of masking three behind the first
-      # failure. (A partial matrix must never publish a release — enforced later
-      # by release.yml requiring all four; canaries are allowed to be partial.)
+      # See every broken target instead of masking two behind the first failure.
+      # (A partial matrix must never publish a release — enforced later by
+      # release.yml requiring every target; canaries are allowed to be partial.)
       fail-fast: false
       matrix:
         include:
+          # macOS is Apple Silicon only: the Intel runner (macos-13) is the last
+          # of a deprecated image and its scarce pool queues for many minutes
+          # (plan I8). Intel Mac users run the arm64 build under Rosetta 2.
           - target: macos-arm64
-            os: macos-14 # Apple Silicon
-            ext: ""
-          - target: macos-x86_64
-            os: macos-13 # last Intel macOS runner (deprecation risk — see plan I8)
+            os: macos-14
             ext: ""
           - target: linux-x86_64
             os: ubuntu-latest
