@@ -137,25 +137,35 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           set -euo pipefail
-          # onedir bundles nested Mach-O files; sign inner-to-outer, launcher
-          # last. Ad-hoc (--sign -) is enough for canaries to *execute* on Apple
-          # Silicon after clearing quarantine. No --deep (deprecated); no
-          # hardened runtime/timestamp (that's the notarization path in 3b).
-          find dist/blender-buddy -type f \( -name '*.so' -o -name '*.dylib' \) -print0 |
+          # On macOS the spec wraps the onedir tree in dist/blender-buddy.app (the
+          # staplable container release.yml notarizes). Sign the bundle's nested
+          # Mach-O files inner-to-outer, the launcher, then the bundle itself.
+          # Ad-hoc (--sign -) is enough for canaries to *execute* on Apple Silicon
+          # after clearing quarantine; Developer ID + hardened runtime + timestamp
+          # + notarization are release.yml's job (Phase 3b). No --deep (deprecated).
+          APP="dist/blender-buddy.app"
+          find "$APP" -type f \( -name '*.so' -o -name '*.dylib' \) -print0 |
             while IFS= read -r -d '' f; do
               codesign --force --sign - "$f"
             done
-          codesign --force --sign - dist/blender-buddy/blender-buddy
-          codesign --verify --strict --verbose=2 dist/blender-buddy/blender-buddy
+          codesign --force --sign - "$APP/Contents/MacOS/blender-buddy"
+          codesign --force --sign - "$APP"
+          codesign --verify --strict --verbose=2 "$APP"
 
       - name: Smoke test (does it launch?)
         run: |
           set -euo pipefail
           # Run the freshly built binary for THIS target (arm64 can't run on the
           # x86 leg). --check mounts headlessly, forcing app.tcss to parse and
-          # the import graph to resolve — the one load-bearing gate.
-          "./dist/blender-buddy/blender-buddy${{ matrix.ext }}" --version
-          "./dist/blender-buddy/blender-buddy${{ matrix.ext }}" --check
+          # the import graph to resolve — the one load-bearing gate. On macOS the
+          # launcher lives inside the .app bundle; elsewhere it's the onedir tree.
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            bin="dist/blender-buddy.app/Contents/MacOS/blender-buddy"
+          else
+            bin="dist/blender-buddy/blender-buddy${{ matrix.ext }}"
+          fi
+          "$bin" --version
+          "$bin" --check
 
       - name: Package archive
         id: package
@@ -167,6 +177,12 @@ jobs:
             # 7z is preinstalled on windows-latest; zips the onedir tree with a
             # top-level blender-buddy/ folder.
             (cd dist && 7z a -tzip "../${file}" blender-buddy >/dev/null)
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            # tar the .app bundle (release.yml Developer ID signs, notarizes, and
+            # staples it). tar preserves the bundle layout, the ad-hoc signature
+            # inside each Mach-O, and — after 3b staples — the notarization ticket.
+            file="${archive}.tar.gz"
+            tar czf "${file}" -C dist blender-buddy.app
           else
             # tar.gz preserves the execute bit (and the ad-hoc signature, which
             # lives inside the Mach-O, not an xattr).

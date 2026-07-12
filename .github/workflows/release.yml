@@ -3,13 +3,20 @@ name: Release (rolling latest)
 # Rolls the single `latest` prerelease on every successful push-to-main Build.
 # It is triggered by `workflow_run` (not `needs:`) so it stays decoupled from the
 # secret-free, fork-facing build.yml: a cancelled or failed Build never releases,
-# and no signing secret is ever exposed to PR/fork code.
+# and no signing secret is ever exposed to PR/fork code. This workflow_run trigger
+# only ever fires from the default branch — it is why the seven signing secrets can
+# live here and never reach a fork PR.
 #
-# Phase 3a scope: AD-HOC signing only. The macOS binary inside the release-<target>
-# archive was already ad-hoc signed and packaged by build.yml, so this workflow
-# needs no macOS runner — a single Ubuntu `publish` job downloads those exact
-# archives, checksums them, and publishes. Developer ID signing + notarization
-# arrive in Phase 3b as a `sign-macos` job inserted ahead of `publish`.
+# Two jobs:
+#   sign-macos  (macos-14) — takes the ad-hoc .app build.yml produced, Developer ID
+#               signs it (hardened runtime + secure timestamp), notarizes it via the
+#               App Store Connect API, staples the ticket so first launch works
+#               OFFLINE with no Gatekeeper prompt and no user `xattr` step, then
+#               re-uploads the signed archive. Holds all the signing secrets.
+#   publish     (ubuntu) — needs: sign-macos. Gathers the Linux/Windows archives
+#               from the triggering Build run + the SIGNED macOS archive from
+#               sign-macos, writes SHA256SUMS, force-moves `latest`, rolls the
+#               prerelease in place. It, not sign-macos, holds `contents: write`.
 
 on:
   workflow_run:
@@ -29,10 +36,175 @@ concurrency:
 permissions: {}
 
 jobs:
+  # Developer ID sign + notarize + staple the macOS .app that build.yml ad-hoc
+  # signed. Runs AHEAD of publish (publish: needs: sign-macos) so publish ships
+  # the stapled bundle, not the ad-hoc one. Same trigger guard as publish, so it
+  # is skipped on every workflow_run firing except a successful main push — and
+  # when it is skipped, publish (needs: sign-macos) is skipped too.
+  sign-macos:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.repository == 'nuggylib/blender-buddy'
+    runs-on: macos-14
+    # notarytool --wait blocks on Apple's service; cap the whole job so a hung
+    # submission can't burn the 360-min default on a scarce macOS runner.
+    timeout-minutes: 30
+    permissions:
+      # Only what it needs: cross-run download-artifact from the triggering Build.
+      # NO contents: write — signing must not be able to touch releases or tags;
+      # publish is the sole holder of that scope.
+      actions: read
+    steps:
+      # Pull the ad-hoc .app archive build.yml produced on the push (workflow_run
+      # artifacts do NOT auto-transfer — fetch by the triggering run's id). Only
+      # the macOS target: arm64 is the sole macOS leg.
+      - name: Download the ad-hoc macOS archive from the Build run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          name: release-macos-arm64
+          path: incoming
+
+      - name: Unpack the .app
+        id: unpack
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          archive="$(ls incoming/blender-buddy-*-macos-arm64.tar.gz)"
+          # Re-tar under the identical name so the published asset URL and its
+          # SHA256SUMS line are unchanged — only the bytes (now stapled) differ.
+          echo "archive_name=$(basename "$archive")" >> "$GITHUB_OUTPUT"
+          tar xzf "$archive" -C dist
+          test -d "dist/blender-buddy.app"
+
+      # Import the Developer ID cert into a throwaway keychain. Secret VALUES are
+      # added in the GitHub UI and only ever exist as ${{ secrets.* }} here.
+      - name: Import Developer ID certificate
+        env:
+          CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          kc="$RUNNER_TEMP/build.keychain"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$kc"
+          # Auto-relock after 1200s of idle so an unlocked keychain can't linger.
+          security set-keychain-settings -lut 1200 "$kc"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$kc"
+          # APPEND to the search list (never `default-keychain -s`, which would
+          # hide the login keychain from the rest of the run).
+          security list-keychains -d user -s "$kc" \
+            $(security list-keychains -d user | sed 's/[">]//g' | xargs)
+          printf '%s' "$CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$kc" \
+            -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          # Let codesign use the imported key without an interactive UI prompt.
+          security set-key-partition-list -S apple-tool:,apple: \
+            -s -k "$KEYCHAIN_PASSWORD" "$kc" >/dev/null
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Developer ID sign (hardened runtime)
+        env:
+          SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        run: |
+          set -euo pipefail
+          kc="$RUNNER_TEMP/build.keychain"
+          APP="dist/blender-buddy.app"
+          # Nested Mach-O first (inner-to-outer), the launcher, then the bundle
+          # last — codesign does not recurse into nested executables, so each must
+          # be signed before the enclosing bundle is sealed. --options runtime
+          # (hardened runtime) + --timestamp are notarization prerequisites. This
+          # --force overwrites build.yml's ad-hoc signature with the real one.
+          find "$APP" -type f \( -name '*.so' -o -name '*.dylib' \) -print0 |
+            while IFS= read -r -d '' f; do
+              codesign --force --timestamp --options runtime \
+                --keychain "$kc" --sign "$SIGN_IDENTITY" "$f"
+            done
+          codesign --force --timestamp --options runtime \
+            --keychain "$kc" --sign "$SIGN_IDENTITY" "$APP/Contents/MacOS/blender-buddy"
+          codesign --force --timestamp --options runtime \
+            --keychain "$kc" --sign "$SIGN_IDENTITY" "$APP"
+          # --deep on VERIFY (not signing) walks the whole bundle and fails on any
+          # unsigned/mis-signed nested code before we waste a notarization round.
+          codesign --verify --deep --strict --verbose=2 "$APP"
+
+      - name: Notarize
+        env:
+          AC_API_KEY_P8_BASE64: ${{ secrets.AC_API_KEY_P8_BASE64 }}
+          AC_KEY_ID: ${{ secrets.AC_KEY_ID }}
+          AC_ISSUER_ID: ${{ secrets.AC_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          APP="dist/blender-buddy.app"
+          # The .p8 is stored base64 to survive secret newline mangling; decode to
+          # a runner-temp file. store-credentials is useless on an ephemeral runner
+          # — pass --key/--key-id/--issuer directly.
+          printf '%s' "$AC_API_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          # notarytool needs a container; ditto preserves the bundle + xattrs
+          # (a plain zip does not).
+          ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/notarize.zip"
+          set +e
+          out="$(xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --key "$RUNNER_TEMP/AuthKey.p8" --key-id "$AC_KEY_ID" \
+            --issuer "$AC_ISSUER_ID" --wait --timeout 20m 2>&1)"
+          rc=$?
+          set -e
+          printf '%s\n' "$out"
+          # --wait alone only reports Accepted/Invalid — on any failure dump the
+          # real per-issue reason from the notary log before failing the job.
+          if [ "$rc" -ne 0 ] || ! printf '%s' "$out" | grep -q 'status: Accepted'; then
+            sub_id="$(printf '%s\n' "$out" | awk -F': ' '/id:/{print $2; exit}')"
+            if [ -n "$sub_id" ]; then
+              echo "Notarization failed — notarytool log for $sub_id:"
+              xcrun notarytool log "$sub_id" \
+                --key "$RUNNER_TEMP/AuthKey.p8" --key-id "$AC_KEY_ID" \
+                --issuer "$AC_ISSUER_ID" || true
+            fi
+            exit 1
+          fi
+
+      - name: Staple + verify
+        run: |
+          set -euo pipefail
+          APP="dist/blender-buddy.app"
+          # Attach the ticket to the bundle so first launch validates OFFLINE.
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
+          # Gatekeeper's own verdict — should print "accepted / Notarized
+          # Developer ID". Informational: don't fail the job on spctl quirks.
+          spctl --assess --type exec --verbose=4 "$APP" || true
+
+      - name: Repackage the signed .app
+        run: |
+          set -euo pipefail
+          tar czf "${{ steps.unpack.outputs.archive_name }}" -C dist blender-buddy.app
+
+      - name: Upload the signed macOS archive
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: signed-macos-arm64
+          path: ${{ steps.unpack.outputs.archive_name }}
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 0 # already a compressed archive
+
+      # Runs even on failure: delete the keychain and shred every secret file so
+      # nothing sensitive survives on the (ephemeral, but be-tidy) runner.
+      - name: Clean up keychain + secret material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/build.keychain" || true
+          rm -f "$RUNNER_TEMP/AuthKey.p8" "$RUNNER_TEMP/notarize.zip" "$RUNNER_TEMP/cert.p12"
+
   publish:
+    needs: sign-macos
     # Publish only when a Build that ran on a push to THIS repo's main succeeded.
     # workflow_run always runs release.yml from the default branch, so these
-    # fields describe the *triggering* Build, not this workflow.
+    # fields describe the *triggering* Build, not this workflow. (Same guard as
+    # sign-macos; if that is skipped, this needs-dependent job is skipped too.)
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
@@ -52,14 +224,26 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
 
       # workflow_run artifacts do NOT auto-transfer — pull them from the
-      # triggering run by id. build.yml uploads one `release-<target>` archive
-      # per leg on push; merge-multiple flattens all three into ./dist.
-      - name: Download release binaries from the Build run
+      # triggering run by id. Take only the Linux/Windows legs here: both slugs
+      # end in `-x86_64`, while macOS is `-arm64`, so this pattern deliberately
+      # skips the ad-hoc macOS archive. The SIGNED macOS archive comes from
+      # sign-macos in the next step instead.
+      - name: Download Linux/Windows binaries from the Build run
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
-          pattern: release-*
+          pattern: release-*-x86_64
+          merge-multiple: true
+          path: dist
+
+      # The stapled macOS archive from this run's sign-macos job (same-run
+      # artifact, so no run-id/token needed). Lands in ./dist beside the others
+      # under its original blender-buddy-*-macos-arm64.tar.gz name.
+      - name: Download the signed macOS archive
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: signed-macos-arm64
           merge-multiple: true
           path: dist
 

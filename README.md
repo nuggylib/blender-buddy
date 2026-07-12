@@ -33,15 +33,19 @@ an archival version. It is published as a prerelease.
 Download the archive for your platform, extract it once, and run the
 `blender-buddy` launcher inside.
 
-**macOS (Apple Silicon).** Builds are ad-hoc signed but not yet notarized, so
-Gatekeeper quarantines them on download. Clear the quarantine attribute once, then
-launch:
+**macOS (Apple Silicon).** Builds are Developer ID signed, notarized by Apple, and
+stapled, so they launch with no Gatekeeper prompt and no extra steps — even offline
+on first run. Blender Buddy is a terminal app: extract, then run the launcher inside
+the `.app` from your terminal (don't double-click it in Finder).
 
 ```bash
 tar xzf blender-buddy-dev-*-macos-arm64.tar.gz
-xattr -cr blender-buddy
-./blender-buddy/blender-buddy
+./blender-buddy.app/Contents/MacOS/blender-buddy
 ```
+
+If a build ever ships un-notarized (e.g. during a credential rotation) Gatekeeper
+will quarantine it; clear the attribute once with
+`xattr -cr blender-buddy.app`, then launch as above.
 
 **Intel Macs:** there is no separate Intel build — run the `macos-arm64` binary
 under Rosetta 2 (`softwareupdate --install-rosetta` if it isn't installed yet).
