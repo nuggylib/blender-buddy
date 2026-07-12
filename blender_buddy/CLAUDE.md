@@ -31,7 +31,10 @@ normal checkout. Do not commit or hand-edit it.
   beyond the config file.
 - `diagnostics/` — build/launch self-tests (`run_headless_check`, the `--check`
   smoke gate). Release-pipeline concerns kept out of `app.py`.
-- `blender/` — (stub) future connection/IPC with a live Blender scene.
+- `blender/` — Blender-executable detection and `--version` validation
+  (`detect.py`); the live-scene connection/IPC client is still a stub.
+- `godot/` — Godot project discovery: a bounded scan for `project.godot` under a
+  chosen root. No Textual, no UI.
 
 ## Conventions
 - Group new code by category into subpackages here rather than adding loose
