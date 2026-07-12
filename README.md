@@ -22,6 +22,44 @@ even identical) setup. It was built for use with Godot.
    - _Verify meshes are linked to the correct bone_
    - _Verify vertex group weights are correct_
 
+## Download & Install
+
+No Python or `uv` install required — grab a prebuilt binary from the rolling
+[`latest`](https://github.com/nuggylib/blender-buddy/releases/tag/latest) release.
+Each merge to `main` rebuilds and replaces it, so `latest` is a **moving pointer**
+to the current tip of `main` (the same URL serves different bytes over time), not
+an archival version. It is published as a prerelease.
+
+Download the archive for your platform, extract it once, and run the
+`blender-buddy` launcher inside.
+
+**macOS (Apple Silicon).** Builds are ad-hoc signed but not yet notarized, so
+Gatekeeper quarantines them on download. Clear the quarantine attribute once, then
+launch:
+
+```bash
+tar xzf blender-buddy-dev-*-macos-arm64.tar.gz
+xattr -cr blender-buddy
+./blender-buddy/blender-buddy
+```
+
+**Intel Macs:** there is no separate Intel build — run the `macos-arm64` binary
+under Rosetta 2 (`softwareupdate --install-rosetta` if it isn't installed yet).
+
+**Linux (x86_64).**
+
+```bash
+tar xzf blender-buddy-dev-*-linux-x86_64.tar.gz
+./blender-buddy/blender-buddy
+```
+
+**Windows (x86_64).** Extract the `.zip`, then run
+`blender-buddy\blender-buddy.exe`. The binary is unsigned, so SmartScreen may warn
+on first launch — choose **More info → Run anyway**.
+
+Each release ships a `SHA256SUMS` manifest; download it next to your archive and
+compare `shasum -a 256 <archive>` against the matching line to verify integrity.
+
 ## Development
 
 Blender Buddy uses [uv](https://docs.astral.sh/uv/) for dependency and
