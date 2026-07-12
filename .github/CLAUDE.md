@@ -20,6 +20,21 @@ GitHub-specific configuration for the repository.
   run **Summary** (via `upload-artifact`'s `artifact-url` + `$GITHUB_STEP_SUMMARY`) so a reviewer
   never has to expand logs — Actions artifacts have no public URL, so the link needs a signed-in
   session and dies with the 14-day retention. **Holds no secrets** — it runs on untrusted fork PRs.
+- `workflows/release.yml` — "Release (rolling latest)" workflow. Triggered by `workflow_run` on the
+  **Build** workflow completing (not `needs:`), so it stays decoupled from the secret-free, fork-facing
+  `build.yml` — a cancelled or failed Build never releases. A single job `if:` guard narrows the many
+  `workflow_run` firings to the one that should publish: `conclusion == 'success'` **and** the triggering
+  Build's `event == 'push'` **and** `head_branch == 'main'` **and** `repository == 'nuggylib/blender-buddy'`.
+  One Ubuntu `publish` job downloads the `release-<target>` archives from the triggering run by
+  `run-id` (workflow_run artifacts do **not** auto-transfer), writes `SHA256SUMS`, force-moves the
+  `latest` tag to the merged commit, and rolls the `latest` prerelease in place via
+  `softprops/action-gh-release`. **Phase 3a: ad-hoc signing only** — the macOS binary was already
+  ad-hoc signed + packaged by `build.yml`, so there is no macOS runner here and **no secrets**; the
+  Developer ID sign + notarize `sign-macos` job lands in Phase 3b ahead of `publish`.
+- `release-notes-latest.md` — Body for the rolling `latest` prerelease (`release.yml` passes it as
+  `body_path`). Per-OS download/extract/run steps, the `xattr -cr` quarantine step (ad-hoc, **not yet
+  notarized**), the Rosetta 2 note for Intel Macs, the moving-`latest` caveat, and `SHA256SUMS`
+  verification. Keep it in sync with the README's "Download & Install" section.
 - `workflows/qa_signoff.yml` — "QA Sign-off" workflow. Fails a PR until the author ticks the
   **Author** checkbox in the `## QA Sign-off` section of the PR body — the developer's explicit
   "I ran the QA Steps and they pass" acknowledgement. It reads the body from the event payload
@@ -50,6 +65,19 @@ GitHub-specific configuration for the repository.
   (`0.1.0-canary.pr42+a1b2c3d`).
 - On a `pull_request` event, `github.sha` is the ephemeral **merge** commit — use
   `github.event.pull_request.head.sha` for anything identifying the PR's actual code.
+- **Rolling `latest` release.** There is exactly one moving `latest` prerelease, rebuilt on every
+  push to `main`. `release.yml` **force-moves the `latest` tag** to the merged commit and clobbers the
+  same-named assets in place — `softprops/action-gh-release` updates the release object but never moves
+  an existing tag, hence the manual `git tag -f latest && git push -f`. Keep it `--prerelease`
+  (`make_latest: false`) so it never steals the "Latest" badge from a future tagged `vX.Y.Z`. **GitHub
+  Immutable Releases must stay DISABLED** while `latest` is a moving tag (it forbids tag moves + asset
+  mutation). Link the explicit `…/releases/download/latest/<file>` asset URL, not
+  `…/releases/latest/download/…` (which follows the "Latest" badge, not this prerelease).
+- **`workflow_run` token + artifacts.** A `workflow_run`-triggered workflow gets a **read-only** token
+  by default and its `github.*` fields describe the *triggering* run (it always runs from the default
+  branch). Grant `contents: write` (release + tag push) **and** `actions: read` (cross-run
+  `download-artifact`) on the job, and pull the upstream artifacts by
+  `run-id: ${{ github.event.workflow_run.id }}` + `github-token` — they do not auto-transfer.
 - Treat the PR body as untrusted input. Pass `github.event.pull_request.body` through an
   `env:` variable, never interpolate it directly into a `run:` script (prevents shell
   injection via a crafted description) — see `workflows/qa_signoff.yml`.
