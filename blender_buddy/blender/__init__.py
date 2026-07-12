@@ -1,5 +1,6 @@
-"""Connection and IPC with a live Blender scene.
+"""Blender executable detection, validation, and (future) scene connection.
 
-Stub only — no implementation yet. Future work adds a client that connects to
-the active Blender scene and streams scene data for validation.
+`detect.py` finds and validates the Blender binary — what first-time setup
+needs. The live-scene connection/IPC client is still a stub; a later plan adds
+a client that streams scene data for validation.
 """
