@@ -16,13 +16,24 @@ Each asset is a per-OS archive of a self-contained bundle — no Python or `uv` 
 
 ## macOS (Apple Silicon)
 
-These builds are **ad-hoc signed but not yet notarized**, so Gatekeeper quarantines them on download. Clear the quarantine attribute once, then launch:
+These builds are **Developer ID signed and notarized by Apple**, and the notarization ticket is **stapled** — so they launch with no Gatekeeper prompt and no extra steps, even on a machine that is offline the first time you run them. Blender Buddy is a terminal app: extract the archive and run the launcher **inside the `.app`** from your terminal (don't double-click it in Finder).
 
 ```bash
 tar xzf blender-buddy-dev-*-macos-arm64.tar.gz
-xattr -cr blender-buddy
-./blender-buddy/blender-buddy
+./blender-buddy.app/Contents/MacOS/blender-buddy
 ```
+
+<details>
+<summary><b>If you see a security warning</b> (degraded fallback)</summary>
+
+If a build ever ships without notarization — for example while a signing credential is being rotated — Gatekeeper will quarantine it. Clear the quarantine attribute once, then launch:
+
+```bash
+xattr -cr blender-buddy.app
+./blender-buddy.app/Contents/MacOS/blender-buddy
+```
+
+</details>
 
 ## Linux
 
