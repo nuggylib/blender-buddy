@@ -62,17 +62,12 @@ def candidate_paths() -> list[Path]:
     if which:
         found.append(Path(which))
 
-    # De-duplicate while preserving order (which may repeat a base path).
-    seen: set[Path] = set()
-    unique: list[Path] = []
-    for p in found:
-        if p not in seen:
-            seen.add(p)
-            unique.append(p)
-    return unique
+    # De-duplicate while preserving order (which may repeat a base path);
+    # dict keys are insertion-ordered, so first occurrence wins.
+    return list(dict.fromkeys(found))
 
 
-def probe_version(exe: str, timeout: float = 10.0) -> ProbeResult:
+def probe_version(exe: str | Path, timeout: float = 10.0) -> ProbeResult:
     """Run `<exe> --version` and classify the result.
 
     Call this from a Textual worker, never the event loop — it blocks on a
@@ -98,11 +93,16 @@ def probe_version(exe: str, timeout: float = 10.0) -> ProbeResult:
             ProbeOutcome.TIMEOUT, message="Blender did not respond (timed out)."
         )
 
-    if proc.returncode != 0 or "Blender" not in proc.stdout:
-        return ProbeResult(
-            ProbeOutcome.UNPARSEABLE, message="That program is not Blender."
-        )
+    if proc.returncode == 0:
+        # Blender prints `Blender X.Y.Z` as a line; scan for it rather than
+        # trusting line 0, so a leading banner can't be mistaken for the version.
+        for line in proc.stdout.splitlines():
+            line = line.strip()
+            if line.startswith("Blender "):
+                return ProbeResult(
+                    ProbeOutcome.OK, version=line.removeprefix("Blender").strip()
+                )
 
-    first_line = proc.stdout.splitlines()[0].strip()  # e.g. "Blender 4.5.0"
-    version = first_line.removeprefix("Blender").strip() or first_line
-    return ProbeResult(ProbeOutcome.OK, version=version)
+    return ProbeResult(
+        ProbeOutcome.UNPARSEABLE, message="That program is not Blender."
+    )

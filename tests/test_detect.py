@@ -7,6 +7,7 @@ tiny fake executable, so the shell-script cases are skipped on Windows.
 
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -56,6 +57,16 @@ def test_candidate_paths_dedupes_which_against_base(monkeypatch, tmp_path):
     assert detect.candidate_paths() == [fake]
 
 
+def test_candidate_paths_macos_resolves_app_binary(monkeypatch):
+    monkeypatch.setattr(detect.sys, "platform", "darwin")
+    monkeypatch.setattr(detect.Path, "exists", lambda self: True)
+    monkeypatch.setattr(detect.shutil, "which", lambda name: None)
+    # macOS resolves Blender.app to its inner Contents/MacOS/Blender binary.
+    assert detect.candidate_paths() == [
+        Path("/Applications/Blender.app/Contents/MacOS/Blender")
+    ]
+
+
 # --- probe_version() outcomes ----------------------------------------------
 
 
@@ -65,6 +76,24 @@ def test_probe_ok_parses_version(tmp_path):
     result = detect.probe_version(str(exe))
     assert result.outcome is ProbeOutcome.OK
     assert result.ok
+    assert result.version == "4.5.0"
+
+
+@posix_only
+def test_probe_accepts_path_object(tmp_path):
+    # candidate_paths() hands back Path objects — probe_version takes them as-is.
+    exe = _make_exe(tmp_path / "blender", 'echo "Blender 4.5.0"')
+    result = detect.probe_version(exe)  # a Path, not str(exe)
+    assert result.outcome is ProbeOutcome.OK
+    assert result.version == "4.5.0"
+
+
+@posix_only
+def test_probe_ok_ignores_leading_banner(tmp_path):
+    # A line before the version must not be mistaken for it.
+    exe = _make_exe(tmp_path / "blender", 'echo "startup noise"; echo "Blender 4.5.0"')
+    result = detect.probe_version(str(exe))
+    assert result.outcome is ProbeOutcome.OK
     assert result.version == "4.5.0"
 
 
