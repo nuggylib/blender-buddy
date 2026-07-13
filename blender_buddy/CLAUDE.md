@@ -12,6 +12,14 @@ this package sits at the repository root, not under `src/`).
   `_resource_path()` resolves bundled data files (e.g. `app.tcss`) both frozen
   (`sys._MEIPASS`) and from source — `CSS_PATH` uses it so the packaged binary
   finds its stylesheet.
+  `BlenderBuddyApp(config_path=..., force_setup=...)`: `on_mount` routes off the
+  config file — **valid** → dashboard, **absent** → first-time setup wizard
+  (`_first_run`, saved only on completion), **corrupt** → dashboard + a
+  non-blocking recovery notice (never auto-overwritten). The dashboard's `s`
+  key and `force_setup` both re-open the wizard via `_open_setup` (edit mode
+  when a valid config exists; a cancel keeps the prior config). `config_path` is
+  the test/injection seam; both wizard flows run `push_screen_wait` inside a
+  `@work` worker.
 - `__main__.py` — enables `python -m blender_buddy`.
 - `app.tcss` — application-level Textual stylesheet (loaded via `App.CSS_PATH`).
 - `__init__.py` — package marker; holds `__version__`, imported from an optional
