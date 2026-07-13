@@ -12,9 +12,12 @@ the user which projects live beneath the root they pick.
 ## Conventions
 - **No Textual, no UI here.** The scan is pure filesystem logic; the wizard
   calls it from a Textual worker and renders the results itself.
-- **Bounded and defensive.** The walk is depth-capped, tolerates per-directory
-  `PermissionError`/`OSError` (skip, don't abort), and never descends into
-  symlinked directories (loop guard). A project directory is not recursed into.
+- **Bounded and defensive.** The walk is depth-capped and tolerates
+  `PermissionError`/`OSError` both per-directory (an unlistable dir is skipped)
+  and per-entry (a readable-but-not-searchable `0o444` parent makes stat-ing a
+  child raise — that child is skipped, its siblings kept). It never descends
+  into symlinked directories (loop guard), and a project directory is not
+  recursed into.
 - **Locate only.** This PR lists projects for display; only the *root* is
   persisted. Indexing, export tracking, and `.blend`→`.glb` diffing are future
   work in this category.

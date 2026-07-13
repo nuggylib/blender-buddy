@@ -76,9 +76,27 @@ def test_permission_denied_subdir_is_skipped(tmp_path):
     proj = _project(tmp_path / "reachable")
     locked = tmp_path / "locked"
     locked.mkdir()
-    locked.chmod(0o000)
+    locked.chmod(0o000)  # not listable — iterdir() itself raises
     try:
         result = find_projects(tmp_path)
     finally:
         locked.chmod(0o755)  # let pytest clean up the tmp tree
+    assert result == [proj]
+
+
+@pytest.mark.skipif(
+    hasattr(os, "geteuid") and os.geteuid() == 0,
+    reason="root ignores the missing search bit on a 0o444 directory",
+)
+def test_readable_but_not_searchable_subdir_is_skipped(tmp_path):
+    # 0o444: listable (iterdir succeeds) but not searchable, so stat()-ing any
+    # child raises PermissionError. The scan must skip it, not crash.
+    proj = _project(tmp_path / "reachable")
+    unsearchable = tmp_path / "unsearchable"
+    (unsearchable / "child").mkdir(parents=True)
+    unsearchable.chmod(0o444)
+    try:
+        result = find_projects(tmp_path)
+    finally:
+        unsearchable.chmod(0o755)  # let pytest clean up the tmp tree
     assert result == [proj]
