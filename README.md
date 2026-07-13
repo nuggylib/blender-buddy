@@ -64,6 +64,26 @@ on first launch — choose **More info → Run anyway**.
 Each release ships a `SHA256SUMS` manifest; download it next to your archive and
 compare `shasum -a 256 <archive>` against the matching line to verify integrity.
 
+## First-run setup
+
+The first time you launch Blender Buddy it runs a short setup wizard to capture the three locations it needs:
+
+1. **Blender executable** — auto-detected on standard installs; the wizard runs `blender --version` to confirm it. flatpak/snap wrappers aren't auto-detected — enter the path manually.
+2. **Models directory** — where your source `.blend` files live. If it doesn't exist yet, the wizard offers to create it.
+3. **Godot projects root** — a single folder under which Blender Buddy lists every project (any directory containing a `project.godot`).
+
+Your answers are saved once, atomically, so a valid config always boots straight to the dashboard. Quitting mid-wizard writes nothing and re-runs setup next launch. To change a value later, press `s` on the dashboard or launch `blender-buddy --setup` to re-open the wizard pre-populated.
+
+The config file lives in the platform's per-user config directory:
+
+| Platform | Location |
+|----------|----------|
+| macOS    | `~/Library/Application Support/blender-buddy/config.toml` |
+| Linux    | `~/.config/blender-buddy/config.toml` (honors `$XDG_CONFIG_HOME`) |
+| Windows  | `%LOCALAPPDATA%\mcnuggies\blender-buddy\config.toml` |
+
+Set `$BLENDER_BUDDY_CONFIG` to a full file path to override the location (used by the test suite so it never touches your real config).
+
 ## Development
 
 Blender Buddy uses [uv](https://docs.astral.sh/uv/) for dependency and
