@@ -108,7 +108,9 @@ def main(argv: list[str] | None = None) -> None:
 
     Bare invocation launches the TUI (unchanged behavior). ``--version`` and
     ``--check`` are non-interactive utilities the release pipeline relies on;
-    ``argv`` is injectable so the CLI is unit-testable without ``subprocess``.
+    ``--setup`` launches straight into the setup wizard to re-run first-time
+    setup. ``argv`` is injectable so the CLI is unit-testable without
+    ``subprocess``.
     """
     parser = argparse.ArgumentParser(
         prog="blender-buddy",
@@ -124,6 +126,11 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Boot the app headlessly and exit 0 if it launches (smoke test).",
     )
+    parser.add_argument(
+        "--setup",
+        action="store_true",
+        help="Launch straight into the setup wizard to re-run first-time setup.",
+    )
     args = parser.parse_args(argv)
 
     if args.check:
@@ -134,7 +141,7 @@ def main(argv: list[str] | None = None) -> None:
         asyncio.run(run_headless_check())
         return
 
-    BlenderBuddyApp().run()
+    BlenderBuddyApp(force_setup=args.setup).run()
 
 
 if __name__ == "__main__":
