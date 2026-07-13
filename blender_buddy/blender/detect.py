@@ -103,6 +103,4 @@ def probe_version(exe: str | Path, timeout: float = 10.0) -> ProbeResult:
                     ProbeOutcome.OK, version=line.removeprefix("Blender").strip()
                 )
 
-    return ProbeResult(
-        ProbeOutcome.UNPARSEABLE, message="That program is not Blender."
-    )
+    return ProbeResult(ProbeOutcome.UNPARSEABLE, message="That program is not Blender.")
