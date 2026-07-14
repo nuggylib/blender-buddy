@@ -13,6 +13,8 @@ class DashboardScreen(Screen):
     pushes a detail screen with fix steps.
     """
 
+    BINDINGS = [("s", "app.open_setup", "Setup")]
+
     def compose(self) -> ComposeResult:
         yield Header()
         yield Static("Blender Buddy — no Blender scene connected yet.")
