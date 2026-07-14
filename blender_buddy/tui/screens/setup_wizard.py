@@ -19,6 +19,7 @@ from pathlib import Path
 
 from textual import on, work
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, ContentSwitcher, Input, Static
@@ -40,12 +41,18 @@ class SetupWizard(Screen[Settings | None]):
     """3-step first-time setup. Returns `Settings` via `dismiss()`, or `None`.
 
     Pass `existing` to open in *edit mode* (fields pre-populated from the current
-    config); leaving it `None` is a fresh first run. Note the deliberately empty
-    `q` handling: this screen binds only `escape`, so a focused `Input` swallows
-    a typed `q` and it never reaches the app's global quit binding.
+    config); leaving it `None` is a fresh first run.
+
+    `escape` cancels. `q` is bound to a no-op purely to shadow the app's global
+    quit while the wizard is up: a focused `Input` already swallows a typed `q`
+    as text, but a focused `Button` would otherwise let `q` bubble to the app and
+    abandon setup — so we absorb it here regardless of what holds focus.
     """
 
-    BINDINGS = [("escape", "cancel", "Cancel")]
+    BINDINGS = [
+        ("escape", "cancel", "Cancel"),
+        Binding("q", "noop", show=False),
+    ]
 
     DEFAULT_CSS = """
     SetupWizard {
@@ -163,6 +170,9 @@ class SetupWizard(Screen[Settings | None]):
         """Escape → cancel. On first run this exits; in edit mode it keeps the
         prior config (the app decides — the screen just returns `None`)."""
         self.dismiss(None)
+
+    def action_noop(self) -> None:
+        """Absorb `q` so the app's global quit can't fire and abandon setup."""
 
     def _goto(self, index: int) -> None:
         self._index = index

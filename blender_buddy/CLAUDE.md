@@ -16,11 +16,16 @@ this package sits at the repository root, not under `src/`).
   `BlenderBuddyApp(config_path=..., force_setup=...)`: `on_mount` routes off the
   config file — **valid** → dashboard, **absent** → first-time setup wizard
   (`_first_run`, saved only on completion), **corrupt** → dashboard + a
-  non-blocking recovery notice (never auto-overwritten). The dashboard's `s`
-  key and `force_setup` both re-open the wizard via `_open_setup` (edit mode
-  when a valid config exists; a cancel keeps the prior config). `config_path` is
-  the test/injection seam; both wizard flows run `push_screen_wait` inside a
-  `@work` worker.
+  non-blocking recovery notice (never auto-overwritten). `force_setup` (the
+  `--setup` flag) layers on top of that routing rather than bypassing it: with
+  no config it *is* the first run (`_first_run`, cancel exits), and with a config
+  it opens the wizard over the dashboard via `_open_setup` (edit mode when valid;
+  a cancel keeps the prior config) — so a cancelled `--setup` never strands a
+  config-less dashboard. The dashboard's `s` key also re-opens via `_open_setup`.
+  Both `_first_run`/`_open_setup` are `@work(exclusive=True, group="setup")`
+  (one wizard at a time) and run `push_screen_wait` inside the worker; saves go
+  through `_save`, which turns an `OSError` into an error notice instead of
+  crashing the worker. `config_path` is the test/injection seam.
 - `__main__.py` — enables `python -m blender_buddy`.
 - `app.tcss` — application-level Textual stylesheet (loaded via `App.CSS_PATH`).
 - `__init__.py` — package marker; holds `__version__`, imported from an optional

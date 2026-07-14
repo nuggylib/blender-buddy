@@ -216,3 +216,73 @@ async def test_force_setup_opens_wizard_over_dashboard(tmp_path):
         )
         assert app.screen.query_one("#blender-path", Input).value == "blender"
         await pilot.press("escape")
+
+
+async def test_q_on_a_focused_button_does_not_quit(tmp_path):
+    """`q` while a Button (not an Input) holds focus is absorbed by the wizard's
+    own binding, not routed to the app's global quit."""
+    app = BlenderBuddyApp(config_path=tmp_path / "config.toml")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        wizard = app.screen
+        assert wizard.__class__.__name__ == "SetupWizard"
+        wizard.query_one("#next", Button).focus()
+        await pilot.pause()
+        await pilot.press("q")
+        await pilot.pause()
+        assert app.screen is wizard  # still on the wizard, app didn't quit
+
+
+async def test_setup_flag_with_absent_config_exits_on_cancel(tmp_path):
+    """--setup with no config behaves like a first run: cancelling exits and
+    writes nothing rather than stranding a config-less dashboard."""
+    cfg = tmp_path / "config.toml"
+    app = BlenderBuddyApp(config_path=cfg, force_setup=True)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.screen.__class__.__name__ == "SetupWizard"
+        await pilot.press("escape")
+        await pilot.pause()
+    assert not cfg.exists()
+    assert app.return_code == 0
+
+
+async def test_save_failure_still_shows_dashboard(tmp_path, monkeypatch):
+    """A `store.save` OSError on the completion path is surfaced, not fatal: the
+    dashboard still shows so the worker never dies mid-transition."""
+    monkeypatch.setattr(
+        detect,
+        "probe_version",
+        lambda exe, timeout=10.0: ProbeResult(ProbeOutcome.OK, version="4.5.0"),
+    )
+    monkeypatch.setattr(discovery, "find_projects", lambda root, max_depth=4: [])
+
+    def _boom(path, settings):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(store, "save", _boom)
+    cfg = tmp_path / "config.toml"
+    models = tmp_path / "models"
+    models.mkdir()
+    godot = tmp_path / "godot"
+    godot.mkdir()
+
+    app = BlenderBuddyApp(config_path=cfg)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        wizard = app.screen
+        switcher = wizard.query_one(ContentSwitcher)
+
+        wizard.query_one("#blender-path", Input).value = "/fake/blender"
+        wizard.query_one("#next", Button).press()
+        assert await _wait_for(pilot, lambda: switcher.current == "step-models")
+
+        wizard.query_one("#models-dir", Input).value = str(models)
+        wizard.query_one("#next", Button).press()
+        assert await _wait_for(pilot, lambda: switcher.current == "step-godot")
+
+        wizard.query_one("#godot-root", Input).value = str(godot)
+        wizard.query_one("#next", Button).press()  # Finish → save raises
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, DashboardScreen))
+
+    assert not cfg.exists()  # save failed, so no config was written

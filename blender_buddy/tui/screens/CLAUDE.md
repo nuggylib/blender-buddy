@@ -25,5 +25,7 @@ in the app (analogous to a route in a web app).
   categories inside Textual `@work` workers (via `asyncio.to_thread`) so the UI
   never freezes; the app, not the screen, persists the result. Cheap inline
   stats (`is_dir`, `mkdir`) and the fast `candidate_paths()` prefill are fine.
-- A screen that must not honor the app's global `q`-quit binding simply omits a
-  `q` binding and relies on a focused `Input` swallowing the keypress.
+- A screen that must not honor the app's global `q`-quit binding shadows it with
+  its own `q` binding (a hidden no-op action). A focused `Input` already swallows
+  a typed `q` as text, but a focused `Button` would let `q` bubble to the app —
+  the screen-level binding closes that gap regardless of what holds focus.
