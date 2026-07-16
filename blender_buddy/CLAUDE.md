@@ -26,6 +26,11 @@ this package sits at the repository root, not under `src/`).
   (one wizard at a time) and run `push_screen_wait` inside the worker; saves go
   through `_save`, which turns an `OSError` into an error notice instead of
   crashing the worker. `config_path` is the test/injection seam.
+  The loaded config is held as app-level state — `settings: reactive[Settings |
+  None]` (`None` when absent/corrupt) — rather than discarded at boot. The
+  dashboard reads and `watch`es it; after a successful save the app **reassigns**
+  `self.settings` (never mutates — `Settings` is frozen) so the reactive fires
+  and the dashboard refreshes without a restart.
 - `__main__.py` — enables `python -m blender_buddy`.
 - `app.tcss` — application-level Textual stylesheet (loaded via `App.CSS_PATH`).
 - `__init__.py` — package marker; holds `__version__`, imported from an optional

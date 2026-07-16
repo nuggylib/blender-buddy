@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from blender_buddy.blender import detect
-from blender_buddy.blender.detect import ProbeOutcome
+from blender_buddy.blender.detect import ExecutableState, ProbeOutcome
 
 posix_only = pytest.mark.skipif(
     sys.platform == "win32", reason="fake exe is a POSIX shell script"
@@ -65,6 +65,43 @@ def test_candidate_paths_macos_resolves_app_binary(monkeypatch):
     assert detect.candidate_paths() == [
         Path("/Applications/Blender.app/Contents/MacOS/Blender")
     ]
+
+
+# --- executable_state() ----------------------------------------------------
+
+
+def test_executable_state_missing_for_absent_path(tmp_path):
+    assert detect.executable_state(tmp_path / "nope") is ExecutableState.MISSING
+
+
+@posix_only
+def test_executable_state_ok_for_executable_file(tmp_path):
+    exe = _make_exe(tmp_path / "blender", 'echo "Blender 4.5.0"')
+    assert detect.executable_state(exe) is ExecutableState.OK
+
+
+@posix_only
+@not_root
+def test_executable_state_not_executable_for_plain_file(tmp_path):
+    plain = tmp_path / "notblender"
+    plain.write_text("just text")  # no exec bit
+    assert detect.executable_state(plain) is ExecutableState.NOT_EXECUTABLE
+
+
+def test_executable_state_windows_treats_any_file_as_ok(monkeypatch, tmp_path):
+    # On Windows the POSIX exec bit is meaningless: a regular file is runnable.
+    plain = tmp_path / "blender.exe"
+    plain.write_text("just text")
+    monkeypatch.setattr(detect.sys, "platform", "win32")
+    assert detect.executable_state(plain) is ExecutableState.OK
+
+
+def test_executable_state_macos_accepts_app_bundle(monkeypatch, tmp_path):
+    # A `.app` bundle is the user-facing executable on macOS (a directory).
+    bundle = tmp_path / "Blender.app"
+    bundle.mkdir()
+    monkeypatch.setattr(detect.sys, "platform", "darwin")
+    assert detect.executable_state(bundle) is ExecutableState.OK
 
 
 # --- probe_version() outcomes ----------------------------------------------

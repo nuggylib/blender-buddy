@@ -1,10 +1,33 @@
 /* Application-level styles for Blender Buddy. */
 
-DashboardScreen {
-    align: center middle;
+/* The dashboard is a top-aligned column of config sections (Blender → Models →
+   Godot), not a single centered line. */
+DashboardScreen #config-panel {
+    width: 100%;
+    height: auto;
+    padding: 1 2;
 }
 
-DashboardScreen > Static {
+DashboardScreen .section {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1;
+}
+
+DashboardScreen .section-title {
+    text-style: bold;
+    color: $accent;
+}
+
+DashboardScreen .config-value {
+    width: 100%;
+}
+
+DashboardScreen .config-detail {
+    color: $text-muted;
+}
+
+DashboardScreen #setup-prompt {
     width: auto;
     padding: 1 2;
 }
