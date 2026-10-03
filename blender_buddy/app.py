@@ -7,6 +7,7 @@ from pathlib import Path
 
 from textual import work
 from textual.app import App
+from textual.reactive import reactive
 
 from blender_buddy import __version__
 from blender_buddy.config import paths, store
@@ -54,6 +55,14 @@ class BlenderBuddyApp(App):
     BINDINGS = [("q", "quit", "Quit")]
     SCREENS = {"dashboard": DashboardScreen}
 
+    # The loaded config, surfaced to screens as app-level state (the house
+    # convention: screens read app state, they don't touch TOML or the fs). The
+    # dashboard watches this and re-renders when it changes; `None` means no valid
+    # config (absent/corrupt), which the dashboard renders as a "run setup" prompt.
+    # Always *reassign* (never mutate) — `Settings` is frozen, and only a fresh
+    # assignment fires the reactive.
+    settings: reactive[Settings | None] = reactive(None)
+
     def __init__(
         self, config_path: Path | None = None, force_setup: bool = False
     ) -> None:
@@ -63,7 +72,8 @@ class BlenderBuddyApp(App):
 
     def on_mount(self) -> None:
         self.theme = "textual-dark"
-        state, _ = store.load(self._config_path)
+        state, settings = store.load(self._config_path)
+        self.settings = settings  # None when absent/corrupt
         if state == store.ABSENT:
             # No config: run first-time setup (cancel exits, no partial config).
             # `--setup` makes no difference here — there is nothing to edit.
@@ -91,7 +101,8 @@ class BlenderBuddyApp(App):
         if settings is None:
             self.exit()
             return
-        self._save(settings)
+        if self._save(settings):
+            self.settings = settings  # reassign (frozen) so the dashboard picks it up
         self.push_screen("dashboard")
 
     def action_open_setup(self) -> None:
@@ -109,6 +120,9 @@ class BlenderBuddyApp(App):
         existing = settings if state == store.VALID else None
         result = await self.push_screen_wait(SetupWizard(existing=existing))
         if result is not None and self._save(result):
+            # Reassign (never mutate — frozen) so the dashboard's reactive fires
+            # and it re-renders behind the wizard without a restart.
+            self.settings = result
             self.notify("Setup saved.")
 
     def _save(self, settings: Settings) -> bool:

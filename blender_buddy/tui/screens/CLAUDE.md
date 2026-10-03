@@ -4,10 +4,22 @@ Full-page Textual `Screen` subclasses. Each screen is one landing view or page
 in the app (analogous to a route in a web app).
 
 ## Contents
-- `dashboard.py` — `DashboardScreen`, the landing view. Currently a placeholder;
-  future work makes it display live validation results from a Blender-polling
-  worker and lets the user open per-category detail screens. Its `s` binding
-  (`app.open_setup`) re-opens the setup wizard in edit mode.
+- `dashboard.py` — `DashboardScreen`, the landing view. Renders the three
+  configured anchors as stacked sections — **Blender (top) → Models (middle) →
+  Godot (bottom)** — each with a live existence/validity marker. It reads
+  `self.app.settings` (app-level state) and never touches TOML or the filesystem
+  beyond cheap stats: Blender validity via `detect.executable_state` (three
+  states — valid / present-but-not-executable / missing — platform-aware, no
+  subprocess), Models/Godot-root existence via `is_dir` inline. The one
+  filesystem *walk* — the Godot project count — runs in a `@work` worker
+  (`asyncio.to_thread(discovery.find_projects, …)`) showing "Scanning…" until it
+  returns (zero projects is a valid `0`). It `watch`es the app's `settings`
+  reactive and `recompose`s on change, so editing config via `s` refreshes the
+  view without a restart. When `self.app.settings is None` (absent/corrupt
+  config) it shows a single "run setup" prompt, not empty section shells. Its
+  `s` binding (`app.open_setup`) re-opens the setup wizard in edit mode. Future
+  work adds live validation results from a Blender-polling worker and
+  per-category detail screens.
 - `setup_wizard.py` — `SetupWizard(Screen[Settings | None])`, the first-time
   setup flow. A 3-step Back/Next `ContentSwitcher` (Blender executable → models
   directory → Godot root) that returns a `Settings` via `dismiss()`, or `None`

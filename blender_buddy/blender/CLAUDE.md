@@ -11,7 +11,12 @@ later plan.
   glob, Linux prefixes + PATH). `probe_version(exe, timeout)` runs
   `<exe> --version` in a subprocess and returns a structured `ProbeResult`
   (`ProbeOutcome`: OK / NOT_FOUND / NOT_EXE / TIMEOUT / UNPARSEABLE, plus the
-  parsed version and a human message).
+  parsed version and a human message). `executable_state(path)` is the cheap,
+  **subprocess-free** counterpart — a platform-aware file stat returning
+  `ExecutableState` (OK / NOT_EXECUTABLE / MISSING). It answers "is something
+  runnable here?" without running it (Windows ignores the exec bit; a macOS
+  `.app` bundle counts; elsewhere require the POSIX exec bit), so callers like
+  the dashboard can render a live validity marker inline on the event loop.
 
 ## Intended responsibility (future — connection, not yet built)
 - Connect to the active Blender scene and stream scene data (meshes, armatures,
