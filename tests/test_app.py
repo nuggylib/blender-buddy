@@ -196,9 +196,10 @@ async def test_missing_models_dir_offers_creation(tmp_path, monkeypatch):
 
 
 async def test_models_step_add_dedup_remove_and_gating(tmp_path, monkeypatch):
-    """Step 2's list contract: Enter adds, duplicates are a no-op, a file is
-    rejected, Remove deletes the highlighted entry, and Next is gated on the
-    list — blocked both when it is empty and when text sits unadded."""
+    """Step 2's list contract, through to what gets persisted: Enter adds,
+    duplicates are a no-op, a file is rejected, Remove deletes the highlighted
+    entry, Next is gated on the list — blocked both when it is empty and when
+    text sits unadded — and finishing writes exactly the surviving entries."""
     monkeypatch.setattr(
         detect,
         "probe_version",
@@ -212,7 +213,8 @@ async def test_models_step_add_dedup_remove_and_gating(tmp_path, monkeypatch):
     a_file = tmp_path / "notes.txt"
     a_file.write_text("not a directory")
 
-    app = BlenderBuddyApp(config_path=tmp_path / "config.toml")
+    cfg = tmp_path / "config.toml"
+    app = BlenderBuddyApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         wizard = app.screen
@@ -264,8 +266,16 @@ async def test_models_step_add_dedup_remove_and_gating(tmp_path, monkeypatch):
 
         wizard.query_one("#next", Button).press()
         assert await _wait_for(pilot, lambda: switcher.current == "step-godot")
-
         assert _listed_models(wizard) == [str(props)]
+
+        wizard.query_one("#godot-root", Input).value = str(tmp_path)
+        wizard.query_one("#next", Button).press()  # Finish
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, DashboardScreen))
+
+    state, settings = store.load(cfg)
+    assert state == store.VALID
+    # Only the surviving entry — not the duplicate, the file, or the unadded text.
+    assert settings.models_directories == (str(props),)
 
 
 async def test_removing_last_models_dir_blocks_next(tmp_path, monkeypatch):
