@@ -6,7 +6,10 @@ in the app (analogous to a route in a web app).
 ## Contents
 - `dashboard.py` — `DashboardScreen`, the landing view. Renders the three
   configured anchors as stacked sections — **Blender (top) → Models (middle) →
-  Godot (bottom)** — each with a live existence/validity marker. It reads
+  Godot (bottom)** — each with a live existence/validity marker. The Models
+  section renders **one row per configured directory**, in stored order, each
+  with its own independent marker (the schema and the wizard both enforce at
+  least one, so there is no empty state). It reads
   `self.app.settings` (app-level state) and never touches TOML or the filesystem
   beyond cheap stats: Blender validity via `detect.executable_state` (three
   states — valid / present-but-not-executable / missing — platform-aware, no
@@ -22,8 +25,19 @@ in the app (analogous to a route in a web app).
   per-category detail screens.
 - `setup_wizard.py` — `SetupWizard(Screen[Settings | None])`, the first-time
   setup flow. A 3-step Back/Next `ContentSwitcher` (Blender executable → models
-  directory → Godot root) that returns a `Settings` via `dismiss()`, or `None`
+  directories → Godot root) that returns a `Settings` via `dismiss()`, or `None`
   on cancel. Pass `existing=Settings` to open pre-populated in *edit mode*.
+  **Step 2 is an add/remove list** (the codebase's only `ListView`): an `Input` +
+  **Add** feeds a `ListView`, and **Remove** deletes the highlighted row. Per-Add
+  validation reuses the single-directory rules — normalize, accept a directory,
+  reject a file, offer **Create directory** for a missing one — and dedups,
+  scoped to the path in the box at Add time so a rejected Add never disturbs the
+  rows already added. Key contract: **Enter in the models box Adds**, it does not
+  advance; **Next gates on the list being non-empty**, not on the box; and text
+  typed but never Added blocks Next with a hint rather than being silently
+  dropped or silently auto-added. Edit mode fills the list from
+  `existing.models_directories` and leaves the box **blank** (prefilling it would
+  invite a duplicate and trip the unadded-text guard on a no-op edit).
 
 ## Conventions
 - One screen per file, named `<Name>Screen` (the wizard is the deliberate

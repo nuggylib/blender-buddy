@@ -10,7 +10,9 @@ filesystem-walk behavior is unit-tested in ``test_discovery.py``; these tests
 exercise the wiring (worker → count) and the live existence markers.
 """
 
-from textual.widgets import Button, ContentSwitcher, Input, Static
+from pathlib import Path
+
+from textual.widgets import Button, ContentSwitcher, Input, ListView, Static
 
 from blender_buddy.app import BlenderBuddyApp
 from blender_buddy.blender import detect
@@ -22,12 +24,14 @@ from blender_buddy.tui.screens.dashboard import DashboardScreen
 
 
 def _seed(cfg, models, godot, blender_exe="blender"):
+    """Seed a valid config. `models` is one path or an iterable of them."""
+    directories = (models,) if isinstance(models, str | Path) else tuple(models)
     store.save(
         cfg,
         Settings(
             blender_executable=blender_exe,
             blender_version="4.5.0",
-            models_directory=str(models),
+            models_directories=tuple(str(d) for d in directories),
             godot_projects_root=str(godot),
         ),
     )
@@ -36,6 +40,11 @@ def _seed(cfg, models, godot, blender_exe="blender"):
 def _text(widget):
     """The plain rendered text of a Static, markup applied/stripped."""
     return str(widget.render())
+
+
+def _models_rows(screen):
+    """The rendered text of every Models row (one per configured directory)."""
+    return [_text(row) for row in screen.query(".models-value")]
 
 
 async def _wait_for(pilot, predicate, tries=100):
@@ -65,7 +74,7 @@ async def test_dashboard_shows_three_sections_in_order(tmp_path, monkeypatch):
         order = [section.id for section in screen.query(".section")]
         assert order == ["section-blender", "section-models", "section-godot"]
 
-        assert str(models) in _text(screen.query_one("#models-value", Static))
+        assert _models_rows(screen) == [f"{models}  ✓ found"]
         assert str(godot) in _text(screen.query_one("#godot-value", Static))
 
 
@@ -82,9 +91,33 @@ async def test_dashboard_marks_missing_models_dir(tmp_path, monkeypatch):
     app = BlenderBuddyApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
-        value = _text(app.screen.query_one("#models-value", Static))
+        (value,) = _models_rows(app.screen)
         assert str(missing) in value
         assert "✗" in value
+
+
+async def test_dashboard_lists_every_models_directory(tmp_path, monkeypatch):
+    """Multi-location display — one row per configured directory, in stored
+    order, each with its own independent existence indicator."""
+    monkeypatch.setattr(discovery, "find_projects", lambda root, max_depth=4: [])
+    cfg = tmp_path / "config.toml"
+    vehicles = tmp_path / "vehicles"
+    vehicles.mkdir()
+    props = tmp_path / "props"  # never created → its own "missing" marker
+    characters = tmp_path / "characters"
+    characters.mkdir()
+    godot = tmp_path / "godot"
+    godot.mkdir()
+    _seed(cfg, [vehicles, props, characters], godot)
+
+    app = BlenderBuddyApp(config_path=cfg)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert _models_rows(app.screen) == [
+            f"{vehicles}  ✓ found",
+            f"{props}  ✗ not found",
+            f"{characters}  ✓ found",
+        ]
 
 
 async def test_dashboard_shows_setup_prompt_when_corrupt(tmp_path):
@@ -142,7 +175,7 @@ async def test_dashboard_refreshes_after_edit(tmp_path, monkeypatch):
     app = BlenderBuddyApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
-        assert str(models) in _text(app.screen.query_one("#models-value", Static))
+        assert _models_rows(app.screen) == [f"{models}  ✓ found"]
 
         await pilot.press("s")
         assert await _wait_for(
@@ -154,7 +187,17 @@ async def test_dashboard_refreshes_after_edit(tmp_path, monkeypatch):
         wizard.query_one("#next", Button).press()  # Blender prefilled → advance
         assert await _wait_for(pilot, lambda: switcher.current == "step-models")
 
+        # Edit mode pre-populates the list; swap the one entry for a new one.
+        listing = wizard.query_one("#models-list", ListView)
+        assert len(listing) == 1
+        listing.index = 0
+        wizard.query_one("#remove-models", Button).press()
+        assert await _wait_for(pilot, lambda: len(listing) == 0)
+
         wizard.query_one("#models-dir", Input).value = str(new_models)
+        wizard.query_one("#add-models", Button).press()
+        assert await _wait_for(pilot, lambda: len(listing) == 1)
+
         wizard.query_one("#next", Button).press()
         assert await _wait_for(pilot, lambda: switcher.current == "step-godot")
 
@@ -163,8 +206,5 @@ async def test_dashboard_refreshes_after_edit(tmp_path, monkeypatch):
         assert await _wait_for(pilot, lambda: isinstance(app.screen, DashboardScreen))
 
         assert await _wait_for(
-            pilot,
-            lambda: (
-                str(new_models) in _text(app.screen.query_one("#models-value", Static))
-            ),
+            pilot, lambda: _models_rows(app.screen) == [f"{new_models}  ✓ found"]
         )

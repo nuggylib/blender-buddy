@@ -11,7 +11,7 @@ in ``test_detect.py`` / ``test_discovery.py``; these tests exercise the wiring.
 Windows-path serialization round-tripping is covered in ``test_config.py``.
 """
 
-from textual.widgets import Button, ContentSwitcher, Input
+from textual.widgets import Button, ContentSwitcher, Input, Label, ListView
 
 from blender_buddy.app import BlenderBuddyApp
 from blender_buddy.blender import detect
@@ -28,7 +28,7 @@ def _seed_valid_config(path):
         Settings(
             blender_executable="blender",
             blender_version="4.5.0",
-            models_directory=str(path.parent),
+            models_directories=(str(path.parent),),
             godot_projects_root=str(path.parent),
         ),
     )
@@ -43,6 +43,23 @@ async def _wait_for(pilot, predicate, tries=100):
     return False
 
 
+def _listed_models(wizard):
+    """The directory shown on each row of step 2's list, in displayed order."""
+    return [
+        str(item.query_one(Label).render())
+        for item in wizard.query_one("#models-list", ListView).children
+    ]
+
+
+async def _add_models_dir(pilot, wizard, directory):
+    """Type a path into step 2 and press Add, waiting for the list to grow."""
+    listing = wizard.query_one("#models-list", ListView)
+    before = len(listing)
+    wizard.query_one("#models-dir", Input).value = str(directory)
+    wizard.query_one("#add-models", Button).press()
+    return await _wait_for(pilot, lambda: len(listing) == before + 1)
+
+
 async def test_valid_config_boots_dashboard(tmp_path):
     """Scenario 4 — a valid config boots straight to the dashboard."""
     cfg = tmp_path / "config.toml"
@@ -53,6 +70,39 @@ async def test_valid_config_boots_dashboard(tmp_path):
         assert isinstance(app.screen, DashboardScreen)
         await pilot.press("q")
     assert app.return_code == 0
+
+
+async def test_v1_config_boots_dashboard_and_is_upgraded(tmp_path, monkeypatch):
+    """A pre-v2 config upgrades with no visible disruption: the app boots the
+    dashboard (not the wizard, not a recovery notice), the dashboard shows the
+    migrated directory, and the file is v2 afterwards.
+
+    Nothing in the config chain is mocked here — the point is that boot → load →
+    migration → render works end to end on a real file.
+    """
+    monkeypatch.setattr(discovery, "find_projects", lambda root, max_depth=4: [])
+    cfg = tmp_path / "config.toml"
+    models = tmp_path / "models"
+    models.mkdir()
+    cfg.write_text(
+        "schema_version = 1\n"
+        '[blender]\nexecutable = "blender"\nversion = "4.5.0"\n'
+        f'[models]\ndirectory = "{models}"\n'
+        f'[godot]\nprojects_root = "{tmp_path}"\n'
+    )
+
+    app = BlenderBuddyApp(config_path=cfg)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert isinstance(app.screen, DashboardScreen)
+        assert app.settings.models_directories == (str(models),)
+        rows = [str(row.render()) for row in app.screen.query(".models-value")]
+        assert rows == [f"{models}  ✓ found"]
+
+    state, settings = store.load(cfg)
+    assert state == store.VALID  # upgraded on disk, so the second load is a no-op
+    assert settings.models_directories == (str(models),)
+    assert "schema_version = 2" in cfg.read_text()
 
 
 async def test_absent_config_shows_wizard(tmp_path):
@@ -92,7 +142,7 @@ async def test_first_run_completes_and_writes_config(tmp_path, monkeypatch):
         wizard.query_one("#next", Button).press()
         assert await _wait_for(pilot, lambda: switcher.current == "step-models")
 
-        wizard.query_one("#models-dir", Input).value = str(models)
+        assert await _add_models_dir(pilot, wizard, models)
         wizard.query_one("#next", Button).press()
         assert await _wait_for(pilot, lambda: switcher.current == "step-godot")
 
@@ -103,13 +153,13 @@ async def test_first_run_completes_and_writes_config(tmp_path, monkeypatch):
     state, settings = store.load(cfg)
     assert state == store.VALID
     assert settings.blender_version == "4.5.0"
-    assert settings.models_directory == str(models)
+    assert settings.models_directories == (str(models),)
     assert settings.godot_projects_root == str(godot)
 
 
 async def test_missing_models_dir_offers_creation(tmp_path, monkeypatch):
-    """Step 2 — a missing models directory reveals a Create button that makes it
-    and advances."""
+    """Step 2 — Adding a missing directory reveals a Create button that makes it
+    and adds it to the list."""
     monkeypatch.setattr(
         detect,
         "probe_version",
@@ -129,15 +179,152 @@ async def test_missing_models_dir_offers_creation(tmp_path, monkeypatch):
         wizard.query_one("#next", Button).press()
         assert await _wait_for(pilot, lambda: switcher.current == "step-models")
 
+        listing = wizard.query_one("#models-list", ListView)
         assert "hidden" in create_button.classes  # not offered until we try
         wizard.query_one("#models-dir", Input).value = str(new_models)
-        wizard.query_one("#next", Button).press()
+        wizard.query_one("#add-models", Button).press()
         assert await _wait_for(pilot, lambda: "hidden" not in create_button.classes)
         assert not new_models.exists()
+        assert len(listing) == 0  # the failed Add added nothing
 
         create_button.press()
-        assert await _wait_for(pilot, lambda: switcher.current == "step-godot")
+        assert await _wait_for(pilot, lambda: len(listing) == 1)
         assert new_models.is_dir()  # created on demand
+
+        wizard.query_one("#next", Button).press()
+        assert await _wait_for(pilot, lambda: switcher.current == "step-godot")
+
+
+async def test_models_step_add_dedup_remove_and_gating(tmp_path, monkeypatch):
+    """Step 2's list contract: Enter adds, duplicates are a no-op, a file is
+    rejected, Remove deletes the highlighted entry, and Next is gated on the
+    list — blocked both when it is empty and when text sits unadded."""
+    monkeypatch.setattr(
+        detect,
+        "probe_version",
+        lambda exe, timeout=10.0: ProbeResult(ProbeOutcome.OK, version="4.5.0"),
+    )
+    monkeypatch.setattr(discovery, "find_projects", lambda root, max_depth=4: [])
+    vehicles = tmp_path / "vehicles"
+    vehicles.mkdir()
+    props = tmp_path / "props"
+    props.mkdir()
+    a_file = tmp_path / "notes.txt"
+    a_file.write_text("not a directory")
+
+    app = BlenderBuddyApp(config_path=tmp_path / "config.toml")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        wizard = app.screen
+        switcher = wizard.query_one(ContentSwitcher)
+
+        wizard.query_one("#blender-path", Input).value = "/fake/blender"
+        wizard.query_one("#next", Button).press()
+        assert await _wait_for(pilot, lambda: switcher.current == "step-models")
+
+        models_input = wizard.query_one("#models-dir", Input)
+        listing = wizard.query_one("#models-list", ListView)
+
+        # Next on an empty list is blocked.
+        wizard.query_one("#next", Button).press()
+        await pilot.pause()
+        assert switcher.current == "step-models"
+
+        # Enter in the box adds (and must not advance the wizard).
+        models_input.value = str(vehicles)
+        models_input.focus()
+        await pilot.pause()
+        await pilot.press("enter")
+        assert await _wait_for(pilot, lambda: len(listing) == 1)
+        assert switcher.current == "step-models"
+        assert models_input.value == ""  # box cleared, ready for the next path
+
+        # A duplicate is a no-op.
+        assert not await _add_models_dir(pilot, wizard, vehicles)
+        assert len(listing) == 1
+
+        # A file is rejected without touching the list.
+        assert not await _add_models_dir(pilot, wizard, a_file)
+        assert len(listing) == 1
+
+        assert await _add_models_dir(pilot, wizard, props)
+        assert len(listing) == 2
+
+        # Text typed but never Added blocks Next rather than being dropped.
+        models_input.value = "/typed/but/unadded"
+        wizard.query_one("#next", Button).press()
+        await pilot.pause()
+        assert switcher.current == "step-models"
+        models_input.value = ""
+
+        # Remove takes out the highlighted entry.
+        listing.index = 0
+        wizard.query_one("#remove-models", Button).press()
+        assert await _wait_for(pilot, lambda: len(listing) == 1)
+
+        wizard.query_one("#next", Button).press()
+        assert await _wait_for(pilot, lambda: switcher.current == "step-godot")
+
+        assert _listed_models(wizard) == [str(props)]
+
+
+async def test_removing_last_models_dir_blocks_next(tmp_path, monkeypatch):
+    """Removing the last entry returns step 2 to its empty-gated state."""
+    monkeypatch.setattr(
+        detect,
+        "probe_version",
+        lambda exe, timeout=10.0: ProbeResult(ProbeOutcome.OK, version="4.5.0"),
+    )
+    models = tmp_path / "models"
+    models.mkdir()
+
+    app = BlenderBuddyApp(config_path=tmp_path / "config.toml")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        wizard = app.screen
+        switcher = wizard.query_one(ContentSwitcher)
+
+        wizard.query_one("#blender-path", Input).value = "/fake/blender"
+        wizard.query_one("#next", Button).press()
+        assert await _wait_for(pilot, lambda: switcher.current == "step-models")
+
+        listing = wizard.query_one("#models-list", ListView)
+        assert await _add_models_dir(pilot, wizard, models)
+
+        listing.index = 0
+        wizard.query_one("#remove-models", Button).press()
+        assert await _wait_for(pilot, lambda: len(listing) == 0)
+        assert listing.index is None
+
+        wizard.query_one("#next", Button).press()
+        await pilot.pause()
+        assert switcher.current == "step-models"  # gated again
+        assert _listed_models(wizard) == []
+
+
+async def test_edit_mode_prepopulates_models_list_and_leaves_input_blank(tmp_path):
+    """Edit mode must carry the existing locations into the list — and leave the
+    box empty, so Next does not trip the unadded-text guard on a no-op edit."""
+    cfg = tmp_path / "config.toml"
+    store.save(
+        cfg,
+        Settings(
+            blender_executable="blender",
+            blender_version="4.5.0",
+            models_directories=("/vehicles", "/props"),
+            godot_projects_root=str(tmp_path),
+        ),
+    )
+    app = BlenderBuddyApp(config_path=cfg, force_setup=True)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert await _wait_for(
+            pilot, lambda: app.screen.__class__.__name__ == "SetupWizard"
+        )
+        wizard = app.screen
+        assert _listed_models(wizard) == ["/vehicles", "/props"]
+        assert wizard.query_one("#models-dir", Input).value == ""
+        await pilot.press("escape")
 
 
 async def test_quit_mid_wizard_writes_no_config(tmp_path):
@@ -277,7 +464,7 @@ async def test_save_failure_still_shows_dashboard(tmp_path, monkeypatch):
         wizard.query_one("#next", Button).press()
         assert await _wait_for(pilot, lambda: switcher.current == "step-models")
 
-        wizard.query_one("#models-dir", Input).value = str(models)
+        assert await _add_models_dir(pilot, wizard, models)
         wizard.query_one("#next", Button).press()
         assert await _wait_for(pilot, lambda: switcher.current == "step-godot")
 

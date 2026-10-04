@@ -103,14 +103,20 @@ class DashboardScreen(Screen):
         )
 
     def _models_section(self, settings: Settings) -> Vertical:
-        found = Path(settings.models_directory).expanduser().is_dir()
+        # One row per configured location, in stored order (the order the user
+        # added them in the wizard). The schema and the wizard both enforce at
+        # least one, so there is no empty-list state to render.
+        rows = [
+            Static(
+                f"{escape(directory)}  "
+                f"{_FOUND if Path(directory).expanduser().is_dir() else _MISSING}",
+                classes="config-value models-value",
+            )
+            for directory in settings.models_directories
+        ]
         return Vertical(
             Static("Models", classes="section-title"),
-            Static(
-                f"{escape(settings.models_directory)}  {_FOUND if found else _MISSING}",
-                id="models-value",
-                classes="config-value",
-            ),
+            *rows,
             id="section-models",
             classes="section",
         )
