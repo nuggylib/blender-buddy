@@ -12,7 +12,10 @@ from textual.reactive import reactive
 from blender_buddy import __version__
 from blender_buddy.config import paths, store
 from blender_buddy.config.settings import Settings
+from blender_buddy.tui.screens.blender_detail import BlenderDetailScreen
 from blender_buddy.tui.screens.dashboard import DashboardScreen
+from blender_buddy.tui.screens.godot_detail import GodotDetailScreen
+from blender_buddy.tui.screens.models import ModelsScreen
 from blender_buddy.tui.screens.setup_wizard import SetupWizard
 
 
@@ -53,7 +56,15 @@ class BlenderBuddyApp(App):
 
     CSS_PATH = _resource_path("app.tcss")
     BINDINGS = [("q", "quit", "Quit")]
-    SCREENS = {"dashboard": DashboardScreen}
+    # The dashboard is the hub; the rest are the per-section detail screens its
+    # `SectionCard`s name as their `target`. Pushed by name, never constructed
+    # with arguments — screens read app-level state instead.
+    SCREENS = {
+        "dashboard": DashboardScreen,
+        "blender-detail": BlenderDetailScreen,
+        "models": ModelsScreen,
+        "godot-detail": GodotDetailScreen,
+    }
 
     # The loaded config, surfaced to screens as app-level state (the house
     # convention: screens read app state, they don't touch TOML or the fs). The

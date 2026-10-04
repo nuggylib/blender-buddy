@@ -1,33 +1,64 @@
 /* Application-level styles for Blender Buddy. */
 
-/* The dashboard is a top-aligned column of config sections (Blender → Models →
-   Godot), not a single centered line. */
+/* The shared config vocabulary. The dashboard and the per-section detail
+   screens render the same kinds of line — a heading, a configured value, a
+   muted sub-detail — so these are app-level classes rather than per-screen
+   copies. */
+.section-title {
+    text-style: bold;
+    color: $accent;
+}
+
+.config-value {
+    width: 100%;
+}
+
+.config-detail {
+    color: $text-muted;
+}
+
+/* Shown in place of the sections when there is no valid config. */
+#setup-prompt {
+    width: auto;
+    padding: 1 2;
+}
+
+/* -- dashboard ----------------------------------------------------------- */
+
+/* A top-aligned column of config sections (Blender → Models → Godot), not a
+   single centered line. */
 DashboardScreen #config-panel {
     width: 100%;
     height: auto;
     padding: 1 2;
 }
 
+/* Sections are focusable cards (SectionCard): arrow keys move between them and
+   enter opens one. The left rail is painted on *every* card, not just the
+   focused one, so only its color changes with focus — a border that appeared on
+   focus would shift the row's text sideways as the user moved through. */
 DashboardScreen .section {
     width: 100%;
     height: auto;
     margin-bottom: 1;
+    border-left: thick $panel;
+    padding-left: 1;
 }
 
-DashboardScreen .section-title {
-    text-style: bold;
-    color: $accent;
+DashboardScreen .section:focus {
+    border-left: thick $accent;
+    background: $boost;
 }
 
-DashboardScreen .config-value {
+/* -- detail screens ------------------------------------------------------ */
+
+#detail-panel {
     width: 100%;
-}
-
-DashboardScreen .config-detail {
-    color: $text-muted;
-}
-
-DashboardScreen #setup-prompt {
-    width: auto;
+    height: auto;
     padding: 1 2;
+}
+
+/* Sets the placeholder note apart from the values above it. */
+#placeholder-note {
+    margin-top: 1;
 }

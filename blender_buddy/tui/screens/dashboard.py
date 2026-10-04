@@ -1,8 +1,13 @@
-"""The dashboard screen — the app's landing view.
+"""The dashboard screen — the app's landing view and navigation hub.
 
 Displays the three configured anchors — **Blender (top) → Models (middle) →
 Godot (bottom)** — each with a lightweight live existence/validity marker so the
 user can tell at a glance whether a saved path has since moved or been deleted.
+
+**Navigation:** each section is a focusable `SectionCard`. `↑`/`↓` (and `j`/`k`)
+step through them, `enter` opens the focused section's detail screen. The cards
+are the screen's only focus stops, so the arrow keys never land somewhere
+unexpected — see `SectionCard` for how that invariant is held.
 
 **Layering:** the screen holds no config of its own — it reads `self.app.settings`
 (app-level state) and never touches TOML or spawns a subprocess. Cheap file stats
@@ -21,6 +26,7 @@ from typing import TYPE_CHECKING, cast
 from rich.markup import escape
 from textual import work
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Vertical
 from textual.css.query import NoMatches
 from textual.screen import Screen
@@ -28,6 +34,7 @@ from textual.widgets import Footer, Header, Static
 
 from blender_buddy.blender import detect
 from blender_buddy.godot import discovery
+from blender_buddy.tui.widgets.section_card import SectionCard
 
 if TYPE_CHECKING:
     from blender_buddy.app import BlenderBuddyApp
@@ -42,13 +49,27 @@ class DashboardScreen(Screen):
 
     Reads `self.app.settings` and re-renders whenever it changes (an edit via `s`
     reassigns it). When there is no valid config (`settings is None`) it shows a
-    single "run setup" prompt rather than empty section shells.
+    single "run setup" prompt rather than empty section shells — so there is
+    nothing focusable, and the navigation keys are harmless no-ops.
 
-    Future: live validation results driven by a Blender-polling worker, and
-    per-category detail screens pushed on top of this one.
+    Future: live validation results driven by a Blender-polling worker, filling
+    in the detail screens the sections already open.
     """
 
-    BINDINGS = [("s", "app.open_setup", "Setup")]
+    BINDINGS = [
+        ("s", "app.open_setup", "Setup"),
+        # One binding per key, not comma-joined pairs: Textual expands `"down,j"`
+        # into a separate Binding for each key, so a shown pair draws its footer
+        # entry *twice*. Exactly one of the four is shown — stepping through
+        # sections is a single action to the user — and it carries the combined
+        # `↑↓` display. j/k are the vim aliases for the same vertical axis.
+        # `enter` is advertised by the focused card itself, so that hint
+        # disappears along with the cards.
+        Binding("down", "app.focus_next", "Move", key_display="↑↓"),
+        Binding("j", "app.focus_next", "Move", show=False),
+        Binding("up", "app.focus_previous", "Move", show=False),
+        Binding("k", "app.focus_previous", "Move", show=False),
+    ]
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -73,15 +94,45 @@ class DashboardScreen(Screen):
         # is off so this doesn't fire redundantly against the value compose already
         # read.
         self._scan_godot()
+        self._focus_section()
         self.watch(self.app, "settings", self._on_settings_changed, init=False)
 
     async def _on_settings_changed(self, _settings: Settings | None) -> None:
+        # `recompose` destroys every widget, the focused card included, so note
+        # which section held focus and hand it back afterwards — otherwise saving
+        # an edit silently moves the user's highlight.
+        focused = self.focused
+        previous = focused.id if isinstance(focused, SectionCard) else None
         await self.recompose()
+        self._focus_section(previous)
         self._scan_godot()
+
+    # -- navigation --------------------------------------------------------
+
+    def on_section_card_opened(self, message: SectionCard.Opened) -> None:
+        """A card was activated — push the detail screen it stands for.
+
+        Navigation is the hub's job, not the card's; the card only names its
+        target. Screens are pushed by name, per the `SCREENS` convention.
+        """
+        self.app.push_screen(message.target)
+
+    def _focus_section(self, section_id: str | None = None) -> None:
+        """Focus `section_id`, falling back to the first section.
+
+        The fallback covers both the initial mount and a recompose that dropped
+        the previously focused section (a config edit can remove one). With no
+        valid config there are no cards at all, and this is a no-op.
+        """
+        cards = list(self.query(SectionCard))
+        if not cards:
+            return
+        target = next((card for card in cards if card.id == section_id), cards[0])
+        target.focus()
 
     # -- sections ----------------------------------------------------------
 
-    def _blender_section(self, settings: Settings) -> Vertical:
+    def _blender_section(self, settings: Settings) -> SectionCard:
         state = detect.executable_state(settings.blender_executable)
         if state is detect.ExecutableState.OK:
             marker = "[green]✓ executable[/]"
@@ -90,7 +141,7 @@ class DashboardScreen(Screen):
         else:
             marker = _MISSING
         version = settings.blender_version or "unknown version"
-        return Vertical(
+        return SectionCard(
             Static("Blender", classes="section-title"),
             Static(
                 f"{escape(settings.blender_executable)}  {marker}",
@@ -98,11 +149,12 @@ class DashboardScreen(Screen):
                 classes="config-value",
             ),
             Static(f"Recorded version: {escape(version)}", classes="config-detail"),
+            target="blender-detail",
             id="section-blender",
             classes="section",
         )
 
-    def _models_section(self, settings: Settings) -> Vertical:
+    def _models_section(self, settings: Settings) -> SectionCard:
         # One row per configured location, in stored order (the order the user
         # added them in the wizard). The schema and the wizard both enforce at
         # least one, so there is no empty-list state to render.
@@ -114,20 +166,21 @@ class DashboardScreen(Screen):
             )
             for directory in settings.models_directories
         ]
-        return Vertical(
+        return SectionCard(
             Static("Models", classes="section-title"),
             *rows,
+            target="models",
             id="section-models",
             classes="section",
         )
 
-    def _godot_section(self, settings: Settings) -> Vertical:
+    def _godot_section(self, settings: Settings) -> SectionCard:
         found = Path(settings.godot_projects_root).expanduser().is_dir()
         # The count is filled in by `_scan_godot` (it walks the fs); until then show
         # a placeholder, or a dash when the root is missing and there is nothing to
         # scan.
         count = "Scanning…" if found else "—"
-        return Vertical(
+        return SectionCard(
             Static("Godot", classes="section-title"),
             Static(
                 f"{escape(settings.godot_projects_root)}  "
@@ -136,6 +189,7 @@ class DashboardScreen(Screen):
                 classes="config-value",
             ),
             Static(count, id="godot-count", classes="config-detail"),
+            target="godot-detail",
             id="section-godot",
             classes="section",
         )

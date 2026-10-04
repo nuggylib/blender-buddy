@@ -1,4 +1,4 @@
-"""Dashboard config-display tests.
+"""Dashboard config-display and section-navigation tests.
 
 Drive the app through Textual's headless ``run_test()`` pilot (no TTY), pointing
 at an injected ``config_path`` so tests never touch the real ``platformdirs``
@@ -20,7 +20,11 @@ from blender_buddy.blender.detect import ProbeOutcome, ProbeResult
 from blender_buddy.config import store
 from blender_buddy.config.settings import Settings
 from blender_buddy.godot import discovery
+from blender_buddy.tui.screens.blender_detail import BlenderDetailScreen
 from blender_buddy.tui.screens.dashboard import DashboardScreen
+from blender_buddy.tui.screens.godot_detail import GodotDetailScreen
+from blender_buddy.tui.screens.models import ModelsScreen
+from blender_buddy.tui.widgets.section_card import SectionCard
 
 
 def _seed(cfg, models, godot, blender_exe="blender"):
@@ -208,3 +212,219 @@ async def test_dashboard_refreshes_after_edit(tmp_path, monkeypatch):
         assert await _wait_for(
             pilot, lambda: _models_rows(app.screen) == [f"{new_models}  ✓ found"]
         )
+
+
+# -- section navigation ----------------------------------------------------
+
+
+def _seeded_app(tmp_path, monkeypatch, directories=1):
+    """A dashboard-booting app over a valid config with `directories` models dirs."""
+    monkeypatch.setattr(discovery, "find_projects", lambda root, max_depth=4: [])
+    cfg = tmp_path / "config.toml"
+    godot = tmp_path / "godot"
+    godot.mkdir()
+    models = []
+    for index in range(directories):
+        directory = tmp_path / f"models-{index}"
+        directory.mkdir()
+        models.append(directory)
+    _seed(cfg, models, godot)
+    return BlenderBuddyApp(config_path=cfg)
+
+
+async def test_dashboard_focuses_first_section_on_mount(tmp_path, monkeypatch):
+    """Initial focus is deterministic — the first (top) section, not nothing."""
+    app = _seeded_app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        focused = app.screen.focused
+        assert isinstance(focused, SectionCard)
+        assert focused.id == "section-blender"
+
+
+async def test_dashboard_focus_chain_is_exactly_the_sections(tmp_path, monkeypatch):
+    """`down` steps through the three section cards and nothing else.
+
+    Guards the navigation contract: a focusable widget sneaking onto the screen
+    (a Button in a card, a scrolling wrapper) would add a stop the user has to
+    arrow past to reach the next section.
+    """
+    app = _seeded_app(tmp_path, monkeypatch, directories=3)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        visited = [app.screen.focused]
+        for _ in range(3):
+            await pilot.press("down")
+            visited.append(app.screen.focused)
+
+        assert all(isinstance(widget, SectionCard) for widget in visited)
+        # Three stops, then back to the top — the chain holds no fourth widget.
+        assert [widget.id for widget in visited] == [
+            "section-blender",
+            "section-models",
+            "section-godot",
+            "section-blender",
+        ]
+
+
+async def test_dashboard_focus_wraps_backwards(tmp_path, monkeypatch):
+    """`up` from the first section wraps to the last, rather than losing focus."""
+    app = _seeded_app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("up")
+        assert app.screen.focused.id == "section-godot"
+
+
+async def test_dashboard_vim_keys_move_focus(tmp_path, monkeypatch):
+    """`j`/`k` are bound alongside the arrows."""
+    app = _seeded_app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("j")
+        assert app.screen.focused.id == "section-models"
+        await pilot.press("k")
+        assert app.screen.focused.id == "section-blender"
+
+
+async def test_dashboard_enter_opens_each_sections_detail_screen(tmp_path, monkeypatch):
+    """Each section opens its own detail screen, and `escape` comes back.
+
+    Walks all three in one app so the full round trip — push, pop, and the focus
+    still being where it was left — is exercised, not just a single hop.
+    """
+    app = _seeded_app(tmp_path, monkeypatch)
+    expected = [
+        ("section-blender", BlenderDetailScreen),
+        ("section-models", ModelsScreen),
+        ("section-godot", GodotDetailScreen),
+    ]
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        for section_id, screen_class in expected:
+            assert app.screen.focused.id == section_id
+            await pilot.press("enter")
+            # `cls=` binds this iteration's class — a bare closure over the loop
+            # variable would read whatever it held when the lambda finally ran.
+            assert await _wait_for(
+                pilot, lambda cls=screen_class: isinstance(app.screen, cls)
+            )
+
+            await pilot.press("escape")
+            assert await _wait_for(
+                pilot, lambda: isinstance(app.screen, DashboardScreen)
+            )
+            assert app.screen.focused.id == section_id
+            await pilot.press("down")
+
+
+async def test_dashboard_restores_focus_after_settings_change(tmp_path, monkeypatch):
+    """A config change recomposes the screen — the highlight must not move.
+
+    `recompose()` destroys every widget, so without an explicit restore the
+    user's highlight silently jumps back to the top after saving an edit.
+    """
+    app = _seeded_app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("down")  # focus Models
+        assert app.screen.focused.id == "section-models"
+
+        replacement = tmp_path / "replacement"
+        replacement.mkdir()
+        app.settings = Settings(
+            blender_executable=app.settings.blender_executable,
+            blender_version=app.settings.blender_version,
+            models_directories=(str(replacement),),
+            godot_projects_root=app.settings.godot_projects_root,
+        )
+
+        assert await _wait_for(
+            pilot, lambda: _models_rows(app.screen) == [f"{replacement}  ✓ found"]
+        )
+        assert app.screen.focused.id == "section-models"
+
+
+async def test_dashboard_restores_focus_to_first_when_section_is_gone(
+    tmp_path, monkeypatch
+):
+    """Falling back to the first section beats leaving focus nowhere.
+
+    Sections are fixed today, so this drives the fallback by asking for an id
+    that was never rendered — the same path a removed section would take.
+    """
+    app = _seeded_app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._focus_section("section-does-not-exist")
+        assert app.screen.focused.id == "section-blender"
+
+
+async def test_dashboard_navigation_is_inert_without_a_valid_config(tmp_path):
+    """A corrupt config renders a prompt and no sections — so the navigation
+    keys have nothing to act on and must not raise."""
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("this is not valid toml {{{")
+
+    app = BlenderBuddyApp(config_path=cfg)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert not app.screen.query(SectionCard)
+        assert app.screen.focused is None
+
+        await pilot.press("down", "up", "j", "k", "enter")
+        await pilot.pause()
+
+        assert isinstance(app.screen, DashboardScreen)
+        assert app.screen.focused is None
+
+
+async def test_dashboard_quit_still_works_from_a_focused_section(tmp_path, monkeypatch):
+    """`q` must reach the app's global quit from a focused card.
+
+    Unlike the wizard, these screens hold no Input, so the wizard's
+    `q`-shadowing must not be copied onto them.
+    """
+    app = _seeded_app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert isinstance(app.screen.focused, SectionCard)
+        await pilot.press("q")
+        assert await _wait_for(pilot, lambda: not app.is_running)
+
+
+async def test_dashboard_footer_advertises_the_navigation_keys(tmp_path, monkeypatch):
+    """The footer is the only place these keys are discoverable, so assert on
+    what it draws from: the screen's active bindings, including the focused
+    card's. `↑↓ Move` appears once, not as two separate rows."""
+    app = _seeded_app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        shown = [
+            (binding.key_display or binding.key, binding.description)
+            for _node, binding, enabled, _tooltip in app.screen.active_bindings.values()
+            if binding.show and enabled
+        ]
+        assert ("↑↓", "Move") in shown
+        assert [entry for entry in shown if entry[1] == "Move"] == [("↑↓", "Move")]
+        assert ("enter", "Open") in shown
+        assert ("s", "Setup") in shown
+        assert ("q", "Quit") in shown
+
+
+async def test_dashboard_footer_drops_open_without_a_valid_config(tmp_path):
+    """No cards means no `enter` binding to advertise — the hint disappears with
+    the thing it acts on rather than lingering as a dead key."""
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("this is not valid toml {{{")
+
+    app = BlenderBuddyApp(config_path=cfg)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        descriptions = {
+            binding.description
+            for _node, binding, enabled, _tooltip in app.screen.active_bindings.values()
+            if binding.show and enabled
+        }
+        assert "Open" not in descriptions
+        assert "Setup" in descriptions
