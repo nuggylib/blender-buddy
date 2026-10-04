@@ -35,17 +35,35 @@ in the app (analogous to a route in a web app).
   after saving. With no valid config there are no cards, so the navigation keys
   are harmless no-ops. Future work adds live validation results from a
   Blender-polling worker.
-- `models.py`, `blender_detail.py`, `godot_detail.py` — the per-section detail
-  screens the dashboard's cards open (`models`, `blender-detail`,
-  `godot-detail` in `SCREENS`). All three are **placeholders for now**: they
-  render the configured value(s) they own plus a `#placeholder-note`, and bind
-  `escape` → `app.pop_screen` and `s` → `app.open_setup`. They exist so
-  navigation is uniform immediately and no `enter` is a dead key. `models.py`
-  is the next one to grow real content — grouped `.blend` listings per
-  configured directory, with a four-state per-directory rendering (missing /
-  unreadable / empty / populated) and fix-it steps at the bottom. It is
-  deliberately thin until the scan that can tell those states apart exists,
-  rather than being written twice.
+- `models.py` — `ModelsScreen`, the Models detail view. One group per configured
+  directory, in stored order, each ending in **one of four states**, and that
+  distinction is the point of the page: a directory that *exists* but holds no
+  models reads as a healthy `✓ found` on the dashboard, which is exactly how a
+  mis-pointed directory hides. So **missing** (`is_dir()` inline), **unreadable**
+  (the scan raised `OSError`), **empty** (`0 models`), and **populated** each
+  render differently, and each problem state contributes a step to the
+  `#fix-panel` block (a `FixPanel`, workflow step 7). That block sits **outside**
+  the scroller so a long model list can't push it off screen, and shows only the
+  problems the scan actually found — a healthy page shows nothing and the list
+  takes the full height. The scan is delegated to the `models`
+  category inside `@work(exclusive=True, group="models-scan")` via
+  `asyncio.to_thread`, per directory, sequentially — few directories, ordered
+  output, and `exclusive` means a recompose-driven rescan cancels the one in
+  flight rather than racing it. Rows are `ModelRow`s labeled with the model's
+  path *relative to* its configured directory, so a model in a subfolder keeps
+  that context; they are the screen's only focus stops, which is why the
+  `VerticalScroll` wrapper passes `can_focus=False` (`ScrollableContainer` opts
+  in by default and would otherwise be a stop the user arrows past). Group
+  shells are keyed by **position** (`#models-state-{i}`, `#models-files-{i}`),
+  not by path — a path is not a usable widget id. `enter` on a row is a
+  deliberately inert seam: `on_model_row_selected` confirms the choice and says
+  validation is not wired up yet, because there is no spec to validate against
+  and no live Blender connection to validate through.
+- `blender_detail.py`, `godot_detail.py` — the other two detail screens
+  (`blender-detail`, `godot-detail` in `SCREENS`). Still **placeholders**: they
+  render the configured value they own plus a `#placeholder-note`. They exist so
+  navigation is uniform and no `enter` is a dead key; `models.py` is the pattern
+  each should follow when it grows real content.
 - `setup_wizard.py` — `SetupWizard(Screen[Settings | None])`, the first-time
   setup flow. A 3-step Back/Next `ContentSwitcher` (Blender executable → models
   directories → Godot root) that returns a `Settings` via `dismiss()`, or `None`
@@ -68,12 +86,19 @@ in the app (analogous to a route in a web app).
 - Register landing screens in `BlenderBuddyApp.SCREENS` and navigate with
   `push_screen` / `pop_screen`; push value-returning screens with
   `push_screen_wait` from inside a `@work` worker.
-- **Keep slow/blocking work out of the event loop and out of the screen.** The
-  wizard owns no `subprocess`, filesystem *walk*, or TOML: it calls the
-  `blender` (`detect.probe_version`) and `godot` (`discovery.find_projects`)
-  categories inside Textual `@work` workers (via `asyncio.to_thread`) so the UI
-  never freezes; the app, not the screen, persists the result. Cheap inline
-  stats (`is_dir`, `mkdir`) and the fast `candidate_paths()` prefill are fine.
+- **Keep slow/blocking work out of the event loop and out of the screen.** No
+  screen owns a `subprocess`, a filesystem *walk*, or TOML: they call the
+  `blender` (`detect.probe_version`), `godot` (`discovery.find_projects`), and
+  `models` (`discovery.find_blend_files`) categories inside Textual `@work`
+  workers (via `asyncio.to_thread`) so the UI never freezes; the app, not the
+  screen, persists results. Cheap inline stats (`is_dir`, `mkdir`) and the fast
+  `candidate_paths()` prefill are fine.
+- **A worker that writes to widgets must tolerate them being gone.** A
+  recompose or a `pop_screen` can land while the scan is in flight, so every
+  post-scan `query_one` is guarded against `NoMatches` (see `dashboard.py`'s
+  `_scan_godot` and `models.py`'s `_update`). Pair that with
+  `@work(exclusive=True, group=…)` so a rescan cancels its predecessor rather
+  than racing it.
 - **A detail screen reads app-level state, it does not take constructor args.**
   That is what keeps every screen pushable by name from `SCREENS`, and why each
   must tolerate `self.app.settings is None` by rendering a `#setup-prompt`

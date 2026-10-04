@@ -58,13 +58,8 @@ class DashboardScreen(Screen):
 
     BINDINGS = [
         ("s", "app.open_setup", "Setup"),
-        # One binding per key, not comma-joined pairs: Textual expands `"down,j"`
-        # into a separate Binding for each key, so a shown pair draws its footer
-        # entry *twice*. Exactly one of the four is shown — stepping through
-        # sections is a single action to the user — and it carries the combined
-        # `↑↓` display. j/k are the vim aliases for the same vertical axis.
-        # `enter` is advertised by the focused card itself, so that hint
-        # disappears along with the cards.
+        # One binding per key: Textual expands a comma-joined pair into one
+        # binding each, drawing the footer entry twice. Only one is shown.
         Binding("down", "app.focus_next", "Move", key_display="↑↓"),
         Binding("j", "app.focus_next", "Move", show=False),
         Binding("up", "app.focus_previous", "Move", show=False),
