@@ -59,6 +59,9 @@ normal checkout. Do not commit or hand-edit it.
   (`detect.py`); the live-scene connection/IPC client is still a stub.
 - `godot/` — Godot project discovery: a bounded scan for `project.godot` under a
   chosen root. No Textual, no UI.
+- `models/` — source-model discovery: a bounded scan for `.blend` files under a
+  configured models directory (`discovery.find_blend_files`). Locates models
+  only; reading their contents belongs to `blender/`. No Textual, no UI.
 
 ## Conventions
 - Group new code by category into subpackages here rather than adding loose

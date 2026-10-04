@@ -15,6 +15,14 @@ in the screen that owns it.
   exactly **one stop per section**, so a `Button` added inside a card later
   cannot become a stop of its own and break the "arrow keys step through
   sections" contract.
+- `model_row.py` — `ModelRow(Static, can_focus=True)`, one `.blend` file on the
+  Models screen. Same shape as `SectionCard` — focusable, `enter` posts
+  `ModelRow.Selected` — but it carries a `Path` rather than a screen name,
+  because what happens to a selected model is not a navigation decision.
+  `label` (the screen passes the model's path *relative to* its configured
+  directory) is escaped inside the widget: it is always a filename, and a model
+  called `sedan[wip].blend` would otherwise be read as markup and render with a
+  chunk missing.
 
 ## Conventions
 - **A widget never navigates.** It names where it leads (`target`) and posts a

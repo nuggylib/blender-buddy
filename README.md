@@ -86,6 +86,33 @@ The config file lives in the platform's per-user config directory:
 
 Set `$BLENDER_BUDDY_CONFIG` to a full file path to override the location (used by the test suite so it never touches your real config).
 
+## Using the dashboard
+
+The dashboard is the landing view and the hub. It shows your three configured anchors — Blender, Models, Godot — each with a live indicator, and each opens a detail page.
+
+| Key | Does |
+|-----|------|
+| `↑` `↓` (or `k` `j`) | Move between sections |
+| `Enter` | Open the highlighted section |
+| `Esc` | Back to the dashboard |
+| `s` | Re-run setup |
+| `q` | Quit |
+
+**Models** is the page worth knowing. It lists the `.blend` files under each configured directory — grouped by directory, and labeled with their path relative to it, so models in subfolders keep their context. Blender's `.blend1`/`.blend2` save backups are ignored, so counts reflect real models. The scan reaches 4 folders deep.
+
+Each directory reports one of four states, and the difference matters:
+
+| State | Means |
+|-------|-------|
+| `N models` | Found and listed |
+| `0 models` | The directory exists but holds no models — usually a mis-pointed directory |
+| `⚠ models unavailable` | The directory exists but can't be read; check its permissions |
+| `✗ not found` | The directory is gone — press `s` to re-point it, or recreate it |
+
+The dashboard only checks that a directory *exists*, so an empty one shows there as a healthy `✓ found`. This page is where that shows up. Steps for fixing each state sit at the bottom of it.
+
+Selecting a model confirms the choice but does nothing further yet — validating one needs a spec to check against and a live Blender connection, which are still to come.
+
 ## Development
 
 Blender Buddy uses [uv](https://docs.astral.sh/uv/) for dependency and
