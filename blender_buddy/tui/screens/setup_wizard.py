@@ -1,9 +1,9 @@
 """The first-time setup wizard screen.
 
-A 3-step, Back/Next `ContentSwitcher` that captures and validates the three
-anchors the product hangs off (Blender executable, models directory, Godot
-projects root) and returns them as a `Settings` via `dismiss()`, or `None` if
-the user cancels.
+A 3-step, Back/Next `ContentSwitcher` that captures and validates the anchors the
+product hangs off (Blender executable, one or more models directories, Godot
+projects root) and returns them as a `Settings` via `dismiss()`, or `None` if the
+user cancels.
 
 **Layering:** this screen contains no `subprocess`, no filesystem *walking*, and
 no TOML. The slow, blocking work — probing `blender --version` and scanning for
@@ -22,7 +22,15 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Button, ContentSwitcher, Input, Static
+from textual.widgets import (
+    Button,
+    ContentSwitcher,
+    Input,
+    Label,
+    ListItem,
+    ListView,
+    Static,
+)
 
 from blender_buddy.blender import detect
 from blender_buddy.config.settings import Settings
@@ -81,6 +89,36 @@ class SetupWizard(Screen[Settings | None]):
     SetupWizard #nav Button {
         margin: 0 1;
     }
+    SetupWizard #models-controls {
+        height: auto;
+    }
+    SetupWizard #models-controls Button {
+        margin: 0 1 1 0;
+    }
+    SetupWizard #models-list {
+        height: auto;
+        min-height: 3;
+        max-height: 10;
+        margin: 0 0 1 0;
+        border: round $panel;
+    }
+    /* Wrap long paths instead of clipping them: these are sibling directories,
+       so the tail is the part that tells them apart. */
+    SetupWizard #models-list ListItem {
+        height: auto;
+    }
+    SetupWizard #models-list Label {
+        width: 1fr;
+        height: auto;
+    }
+    /* Keep the Remove target visible even when the list doesn't have focus —
+       otherwise Remove deletes a row the user can't see is selected. */
+    SetupWizard #models-list > ListItem.--highlight {
+        background: $accent 40%;
+    }
+    SetupWizard #models-list:focus > ListItem.--highlight {
+        background: $accent;
+    }
     SetupWizard .hidden {
         display: none;
     }
@@ -95,7 +133,8 @@ class SetupWizard(Screen[Settings | None]):
         # unchanged fields; each is refreshed when its step is advanced past.
         self._blender_exe = existing.blender_executable if existing else ""
         self._blender_version = existing.blender_version if existing else ""
-        self._models_dir = existing.models_directory if existing else ""
+        # Step 2 collects a *list* — order is user-meaningful and preserved.
+        self._models_dirs = list(existing.models_directories) if existing else []
         self._godot_root = existing.godot_projects_root if existing else ""
 
     def compose(self) -> ComposeResult:
@@ -109,11 +148,20 @@ class SetupWizard(Screen[Settings | None]):
                 )
                 yield Static("", id="blender-status")
             with Vertical(id="step-models"):
-                yield Static("Step 2 of 3 — Where do your source models live?")
-                yield Input(
-                    value=self.existing.models_directory if self.existing else "",
-                    placeholder="~/BlenderModels",
-                    id="models-dir",
+                yield Static(
+                    "Step 2 of 3 — Where do your source models live?\n"
+                    "Add one or more directories (Enter adds the typed path)."
+                )
+                # Deliberately blank even in edit mode: the existing locations
+                # go in the list below, and prefilling the box would invite
+                # adding a duplicate.
+                yield Input(placeholder="~/BlenderModels", id="models-dir")
+                with Horizontal(id="models-controls"):
+                    yield Button("Add", id="add-models", variant="primary")
+                    yield Button("Remove", id="remove-models")
+                yield ListView(
+                    *(ListItem(Label(d)) for d in self._models_dirs),
+                    id="models-list",
                 )
                 yield Static("", id="models-status")
                 yield Button(
@@ -209,26 +257,98 @@ class SetupWizard(Screen[Settings | None]):
         else:
             self._status("blender-status", result.message)
 
-    # -- step 2: models directory ------------------------------------------
+    # -- step 2: models directories ----------------------------------------
 
     def _advance_models(self) -> None:
+        """Next out of step 2. Gated on the *list*, never on the input box.
+
+        Text typed but never Added blocks with a hint rather than being silently
+        dropped or silently auto-added — either would lose or invent a location
+        the user never confirmed.
+        """
+        if self.query_one("#models-dir", Input).value.strip():
+            self._status(
+                "models-status", "Press Add to include that path, or clear the box."
+            )
+            return
+        if not self._models_dirs:
+            self._status("models-status", "Add at least one models directory.")
+            return
+        self._goto(2)
+
+    @on(Input.Submitted, "#models-dir")
+    def _on_models_submitted(self) -> None:
+        """Enter in the models box **adds**; it does not advance the wizard."""
+        self._add_models()
+
+    @on(Button.Pressed, "#add-models")
+    def _on_add_models(self) -> None:
+        self._add_models()
+
+    def _add_models(self) -> None:
+        """Validate the typed path and add it to the list.
+
+        Same per-path rules the single-directory flow used: normalize, accept a
+        directory, reject a file, and offer to create a missing one. The guards
+        reject *this* Add without touching the already-added list.
+        """
         raw = self.query_one("#models-dir", Input).value
+        create_button = self.query_one("#create-models", Button)
         if not raw.strip():
+            create_button.add_class("hidden")
             self._status("models-status", "Enter the directory where your models live.")
             return
         path = Path(_normalize(raw))
-        create_button = self.query_one("#create-models", Button)
         if path.is_dir():
-            self._models_dir = str(path)
-            self._goto(2)
+            self._accept_models_dir(str(path))
         elif path.exists():
             create_button.add_class("hidden")
             self._status("models-status", "That path is a file, not a directory.")
         else:
+            # Scoped to the path in the box right now — pressing Create reads the
+            # box again, so it can never create some other pending entry.
             create_button.remove_class("hidden")
             self._status(
                 "models-status", "That directory doesn't exist yet — create it?"
             )
+
+    def _accept_models_dir(self, directory: str) -> None:
+        """Append a validated directory, clear the box, and report what happened.
+
+        Normalization already collapses `~/models`, `~/models/` and the absolute
+        form to one string, so a membership test is a sufficient dedup.
+        """
+        self.query_one("#create-models", Button).add_class("hidden")
+        self.query_one("#models-dir", Input).value = ""
+        if directory in self._models_dirs:
+            self._status("models-status", f"Already added: {directory}")
+            return
+        self._models_dirs.append(directory)
+        self.query_one("#models-list", ListView).append(ListItem(Label(directory)))
+        self._status("models-status", f"Added {directory}")
+
+    @on(Button.Pressed, "#remove-models")
+    async def _remove_models(self) -> None:
+        """Remove the highlighted entry, then keep the highlight somewhere sane.
+
+        Awaits the removal so the index is only reassigned once the item is
+        actually gone; after removing the last row the highlight clears and the
+        step returns to its empty-gated state.
+        """
+        listing = self.query_one("#models-list", ListView)
+        index = listing.index
+        if index is None or not self._models_dirs:
+            self._status("models-status", "Select a directory to remove.")
+            return
+        removed = self._models_dirs.pop(index)
+        await listing.pop(index)
+        if self._models_dirs:
+            # Highlight the entry that slid into this slot, or the new last one.
+            listing.index = min(index, len(self._models_dirs) - 1)
+            self._status("models-status", f"Removed {removed}")
+        else:
+            listing.index = None
+            self._status("models-status", "Add at least one models directory.")
 
     @on(Button.Pressed, "#create-models")
     def _create_models(self) -> None:
@@ -241,9 +361,7 @@ class SetupWizard(Screen[Settings | None]):
                 f"Could not create directory: {error.strerror or error}",
             )
             return
-        self.query_one("#create-models", Button).add_class("hidden")
-        self._models_dir = str(path)
-        self._goto(2)
+        self._accept_models_dir(str(path))
 
     # -- step 3: Godot projects root ---------------------------------------
 
@@ -294,7 +412,7 @@ class SetupWizard(Screen[Settings | None]):
         return Settings(
             blender_executable=self._blender_exe,
             blender_version=self._blender_version,
-            models_directory=self._models_dir,
+            models_directories=tuple(self._models_dirs),
             godot_projects_root=self._godot_root,
         )
 
