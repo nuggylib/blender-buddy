@@ -41,8 +41,11 @@ in the app (analogous to a route in a web app).
   models reads as a healthy `✓ found` on the dashboard, which is exactly how a
   mis-pointed directory hides. So **missing** (`is_dir()` inline), **unreadable**
   (the scan raised `OSError`), **empty** (`0 models`), and **populated** each
-  render differently, and each has its own step in the `#fix-heading` block that
-  closes the page (workflow step 7). The scan is delegated to the `models`
+  render differently, and each problem state contributes a step to the
+  `#fix-panel` block (a `FixPanel`, workflow step 7). That block sits **outside**
+  the scroller so a long model list can't push it off screen, and shows only the
+  problems the scan actually found — a healthy page shows nothing and the list
+  takes the full height. The scan is delegated to the `models`
   category inside `@work(exclusive=True, group="models-scan")` via
   `asyncio.to_thread`, per directory, sequentially — few directories, ordered
   output, and `exclusive` means a recompose-driven rescan cancels the one in

@@ -6,7 +6,8 @@ The Textual UI layer: everything the user sees and interacts with.
 - `screens/` — full-page views (`Screen` subclasses). The app navigates by
   pushing/popping screens on the stack.
 - `widgets/` — reusable widgets screens are assembled from (`SectionCard`, the
-  focusable dashboard section; `ModelRow`, the focusable model row).
+  focusable dashboard section; `ModelRow`, the focusable model row; `FixPanel`,
+  the "how to fix issues" block).
 
 ## Conventions
 - Screens go in `screens/`; reusable widgets go in `widgets/`. A widget belongs

@@ -1,10 +1,4 @@
-"""A focusable row standing for one source model on the Models screen.
-
-The sibling of `SectionCard`: same shape — focusable, `enter` posts a message,
-navigation stays with the screen — but it carries a `Path` rather than the name
-of a screen to push, because what happens to a selected model is not a
-navigation decision.
-"""
+"""A focusable row standing for one source model on the Models screen."""
 
 from __future__ import annotations
 
@@ -19,14 +13,9 @@ from textual.widgets import Static
 class ModelRow(Static, can_focus=True):
     """One `.blend` file, selectable with `enter`.
 
-    `label` is how the file is shown — the screen passes its path relative to
-    the configured directory it was found under, so a model in a subfolder keeps
-    that context without repeating the directory prefix on every row. `path` is
-    the absolute path the message carries.
-
-    `label` is escaped here rather than at the call site: it is always a
-    filename, and a model called `sedan[wip].blend` would otherwise be read as
-    markup and rendered with a chunk missing.
+    `label` is how the file is shown (the screen passes its path relative to the
+    configured directory); `path` is what the message carries. `label` is
+    escaped here because a model named `sedan[wip].blend` would read as markup.
     """
 
     BINDINGS = [Binding("enter", "select", "Select")]

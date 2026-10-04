@@ -218,21 +218,131 @@ async def test_models_screen_shows_nested_models_relative_to_their_directory(
         assert _row_labels(screen) == [f"▸ {Path('civilian') / 'sedan.blend'}"]
 
 
-async def test_models_screen_lists_fix_steps(tmp_path, monkeypatch):
-    """Workflow step 7 — each failure state has a step saying what to do."""
+def _fix_steps(screen):
+    return [_text(step) for step in screen.query(".fix-step")]
+
+
+async def test_models_screen_shows_a_fix_step_only_for_problems_present(
+    tmp_path, monkeypatch
+):
+    """Workflow step 7 — each failure state present gets a step saying what to
+    do, and the states that did *not* occur contribute nothing.
+
+    An always-on reference block would eat rows the list needs, so the block
+    carries only live problems.
+    """
     empty = tmp_path / "empty"
     empty.mkdir()
     app = _app(tmp_path, monkeypatch, [empty])
     async with app.run_test() as pilot:
         await _open_models(pilot, app)
-        steps = " ".join(_text(step) for step in app.screen.query(".fix-step"))
+        screen = app.screen
+        assert await _wait_for(pilot, lambda: len(_fix_steps(screen)) == 1)
 
-        assert app.screen.query_one("#fix-heading", Static)
-        assert "not found" in steps
-        assert "permissions" in steps
-        assert ".blend1" in steps  # backups are ignored on purpose — say so
+        (step,) = _fix_steps(screen)
+        assert "0 models" in step
+        assert ".blend1" in step  # backups are ignored on purpose — say so
         # The depth cap is quoted from the scan, not hard-coded in the copy.
-        assert str(models_discovery.DEFAULT_MAX_DEPTH) in steps
+        assert str(models_discovery.DEFAULT_MAX_DEPTH) in step
+
+        # The problems that did not occur are not advertised.
+        joined = " ".join(_fix_steps(screen))
+        assert "not found" not in joined
+        assert "permissions" not in joined
+
+        assert screen.query_one("#fix-heading", Static)
+        assert screen.query_one("#fix-panel").display
+
+
+async def test_models_screen_fix_block_lists_every_problem_present(
+    tmp_path, monkeypatch
+):
+    """All three problem states at once — one step each, in a fixed order so the
+    block does not reshuffle between scans."""
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    unreadable = tmp_path / "unreadable"
+    unreadable.mkdir()
+    missing = tmp_path / "missing"  # never created
+
+    app = _app(
+        tmp_path,
+        monkeypatch,
+        [empty, unreadable, missing],
+        {empty: [], unreadable: PermissionError(13, "Permission denied")},
+    )
+    async with app.run_test() as pilot:
+        await _open_models(pilot, app)
+        screen = app.screen
+        assert await _wait_for(pilot, lambda: len(_fix_steps(screen)) == 3)
+
+        found, unavailable, zero = _fix_steps(screen)
+        assert "not found" in found
+        assert "permissions" in unavailable
+        assert "0 models" in zero
+
+
+async def test_models_screen_hides_the_fix_block_when_all_is_well(
+    tmp_path, monkeypatch
+):
+    """Nothing to fix means nothing docked — the list gets the full height."""
+    vehicles = tmp_path / "vehicles"
+    vehicles.mkdir()
+    app = _app(
+        tmp_path, monkeypatch, [vehicles], {vehicles: [vehicles / "sedan.blend"]}
+    )
+    async with app.run_test() as pilot:
+        await _open_models(pilot, app)
+        screen = app.screen
+        assert await _wait_for(pilot, lambda: len(screen.query(ModelRow)) == 1)
+
+        assert not screen.query_one("#fix-panel").display
+        assert _fix_steps(screen) == []
+
+
+async def test_models_screen_fix_block_stays_visible_under_a_long_list(
+    tmp_path, monkeypatch
+):
+    """The regression this guards: the advice used to sit at the end of the
+    scrolling page, so a long model list pushed it off screen entirely.
+
+    Asserted against the composited screen — what is actually drawn — because
+    region arithmetic alone called the old layout "visible" too.
+    """
+    vehicles = tmp_path / "vehicles"
+    vehicles.mkdir()
+    missing = tmp_path / "missing"  # never created → one docked step
+    app = _app(
+        tmp_path,
+        monkeypatch,
+        [vehicles, missing],
+        {vehicles: [vehicles / f"m{i:02d}.blend" for i in range(40)]},
+    )
+    async with app.run_test(size=(80, 16)) as pilot:
+        await _open_models(pilot, app)
+        screen = app.screen
+        assert await _wait_for(pilot, lambda: len(screen.query(ModelRow)) == 40)
+        assert await _wait_for(pilot, lambda: len(_fix_steps(screen)) == 1)
+
+        def drawn():
+            return "\n".join(
+                "".join(segment.text for segment in strip._segments)
+                for strip in app.screen._compositor.render_strips()
+            )
+
+        # Visible before scrolling...
+        assert "How to fix issues" in drawn()
+
+        # ...and still visible at the bottom of a list far taller than the
+        # terminal, which is the case that used to lose it.
+        for _ in range(39):
+            await pilot.press("down")
+        await pilot.pause()
+        text = drawn()
+        assert "How to fix issues" in text
+        assert "re-point the directory" in text
+        assert "m39.blend" in text  # the list did scroll
+        assert "Quit" in text  # and the key footer is still there too
 
 
 async def test_models_screen_navigates_and_selects_rows(tmp_path, monkeypatch):

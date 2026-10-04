@@ -1,24 +1,18 @@
-"""The Models detail screen — the source `.blend` files behind each configured
-models directory.
+"""The Models detail screen — the `.blend` files behind each configured directory.
 
-One group per configured directory, in stored order (the order they were added
-in the wizard, and the order the dashboard lists them). Each group ends in one
-of four states, and the distinction is the point of the page: a directory that
-*exists* but holds no models reads as a healthy `✓ found` on the dashboard, which
-is exactly how a mis-pointed directory hides. So **missing**, **unreadable**,
-**empty**, and **populated** each render differently and each gets its own fix
-step at the bottom of the page.
+One group per directory in stored order, each ending in one of four states
+(missing / unreadable / empty / populated) with a fix step for the problems.
+The distinction is the point: an empty directory reads as a healthy `✓ found`
+on the dashboard.
 
-**Layering:** no TOML, no `subprocess`. The screen reads `self.app.settings`
-(app-level state) and delegates the filesystem *walk* to the `models` category
-inside a Textual `@work` worker (via `asyncio.to_thread`), so the event loop
-never blocks. The cheap `is_dir()` that separates *missing* from the rest runs
-inline.
+The filesystem walk is delegated to the `models` category inside a `@work`
+worker; only the `is_dir()` that separates *missing* from the rest runs inline.
 """
 
 from __future__ import annotations
 
 import asyncio
+from enum import Enum, auto
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -32,6 +26,7 @@ from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
 
 from blender_buddy.models import discovery
+from blender_buddy.tui.widgets.fix_panel import FixPanel
 from blender_buddy.tui.widgets.model_row import ModelRow
 
 if TYPE_CHECKING:
@@ -39,26 +34,45 @@ if TYPE_CHECKING:
     from blender_buddy.config.settings import Settings
 
 _SCANNING = "Scanning…"
-_MISSING = "[red]✗ not found[/]"
-_UNAVAILABLE = "[yellow]⚠ models unavailable — check directory permissions[/]"
-_EMPTY = "[yellow]0 models[/]"
 
-_FIX_STEPS = [
-    "[b]✗ not found[/] — press `s` to re-point the directory, or create it on disk.",
-    "[b]⚠ models unavailable[/] — the directory exists but can't be read; "
-    "check its permissions.",
-    "[b]0 models[/] — the directory is empty of models. Confirm it is the one "
-    "holding your source files; Blender's `.blend1` save backups are ignored "
-    "on purpose.",
-    f"[b]A model is missing from a list[/] — it may sit deeper than "
-    f"{discovery.DEFAULT_MAX_DEPTH} folders below the configured directory.",
-]
+
+class _State(Enum):
+    """What a scan concluded about one configured directory."""
+
+    MISSING = auto()
+    UNAVAILABLE = auto()
+    EMPTY = auto()
+    POPULATED = auto()
+
+
+_MARKERS = {
+    _State.MISSING: "[red]✗ not found[/]",
+    _State.UNAVAILABLE: "[yellow]⚠ models unavailable — check directory permissions[/]",
+    _State.EMPTY: "[yellow]0 models[/]",
+}
+
+# One step per *problem* state; POPULATED has nothing to fix, so a healthy page
+# shows nothing.
+_FIX_STEPS = {
+    _State.MISSING: (
+        "[b]✗ not found[/] — press `s` to re-point the directory, or create it on disk."
+    ),
+    _State.UNAVAILABLE: (
+        "[b]⚠ models unavailable[/] — the directory exists but can't be read; "
+        "check its permissions."
+    ),
+    _State.EMPTY: (
+        f"[b]0 models[/] — confirm this is the directory holding your source "
+        f"files. Blender's `.blend1` save backups are ignored on purpose, and "
+        f"the scan looks {discovery.DEFAULT_MAX_DEPTH} folders deep."
+    ),
+}
+# Fixed order, so the block doesn't reshuffle between scans.
+_STEP_ORDER = (_State.MISSING, _State.UNAVAILABLE, _State.EMPTY)
 
 
 def _plural(count: int, noun: str, plural: str | None = None) -> str:
-    """`1 model` / `2 models`. Spelled out rather than the `model(s)` shorthand
-    used elsewhere because this page also counts *directories*, and
-    `directory(s)` is not a word."""
+    """`1 model` / `2 models`. Spelled out because `directory(s)` is not a word."""
     if count == 1:
         return f"{count} {noun}"
     return f"{count} {plural or noun + 's'}"
@@ -79,8 +93,8 @@ class ModelsScreen(Screen):
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
         ("s", "app.open_setup", "Setup"),
-        # One binding per key, not comma-joined keys: Textual expands those into
-        # a separate binding each, so a shown pair draws its footer entry twice.
+        # One binding per key: Textual expands a comma-joined pair into one
+        # binding each, drawing the footer entry twice.
         Binding("down", "app.focus_next", "Move", key_display="↑↓"),
         Binding("j", "app.focus_next", "Move", show=False),
         Binding("up", "app.focus_previous", "Move", show=False),
@@ -96,22 +110,16 @@ class ModelsScreen(Screen):
                 id="setup-prompt",
             )
         else:
-            # The one scrolling page in the app — a models directory can hold
-            # any number of files. `can_focus=False` keeps the scroller itself
-            # out of the row focus chain (ScrollableContainer opts in by
-            # default), while focusing a row still scrolls it into view.
+            # can_focus=False keeps the scroller out of the row focus chain.
             yield VerticalScroll(
                 Static("Models", classes="section-title"),
                 Static(_SCANNING, id="models-summary", classes="config-detail"),
                 *self._groups(settings),
-                Static("How to fix issues", id="fix-heading", classes="section-title"),
-                *(
-                    Static(f"• {step}", classes="config-detail fix-step")
-                    for step in _FIX_STEPS
-                ),
                 id="detail-panel",
                 can_focus=False,
             )
+            # Outside the scroller, so it survives a long list. Scan fills it.
+            yield FixPanel(id="fix-panel")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -119,8 +127,7 @@ class ModelsScreen(Screen):
         self.watch(self.app, "settings", self._on_settings_changed, init=False)
 
     async def _on_settings_changed(self, _settings: Settings | None) -> None:
-        # The configured directories themselves changed, so there is no row to
-        # restore focus to — the scan re-focuses the first one it mounts.
+        # The directories changed, so there is no row to restore focus to.
         await self.recompose()
         self._scan_models()
 
@@ -129,9 +136,7 @@ class ModelsScreen(Screen):
     def _groups(self, settings: Settings) -> list[Vertical]:
         """One shell per configured directory; the worker fills in the rest.
 
-        Both the state line and the row container are indexed by position rather
-        than by path, because a path is not a usable widget id (slashes, dots)
-        and two directories could differ only in characters an id would mangle.
+        Indexed by position, not path — a path is not a usable widget id.
         """
         return [
             Vertical(
@@ -144,11 +149,7 @@ class ModelsScreen(Screen):
         ]
 
     def _update(self, selector: str, text: str) -> bool:
-        """Set a `Static`'s text, tolerating a recompose that removed it.
-
-        Returns whether the widget was still there — the worker uses that to
-        stop early rather than keep scanning for a screen that has moved on.
-        """
+        """Set a `Static`'s text; False if a recompose already removed it."""
         try:
             self.query_one(selector, Static).update(text)
         except NoMatches:
@@ -161,69 +162,73 @@ class ModelsScreen(Screen):
     async def _scan_models(self) -> None:
         """Scan each configured directory, off the event loop.
 
-        Sequential rather than gathered: the directories are few, the output is
-        ordered, and one slow directory holding up the rest is a better failure
-        than rows appearing out of order. `exclusive` means a recompose-driven
-        rescan cancels the one in flight instead of racing it.
+        Sequential rather than gathered, to keep the output ordered.
         """
         settings = cast("BlenderBuddyApp", self.app).settings
         if settings is None:
             return
         total = 0
+        seen: set[_State] = set()
         for index, directory in enumerate(settings.models_directories):
             path = Path(directory).expanduser()
-            # `is_dir()` is what separates *missing* from *unreadable*: the scan
-            # raises for both, and conflating them would tell the user to fix
-            # permissions on a directory that isn't there.
+            # Separates *missing* from *unreadable*; the scan raises for both.
             if not path.is_dir():
-                if not self._update(f"#models-state-{index}", _MISSING):
+                seen.add(_State.MISSING)
+                if not self._update(f"#models-state-{index}", _MARKERS[_State.MISSING]):
                     return
                 continue
             try:
                 found = await asyncio.to_thread(discovery.find_blend_files, path)
             except OSError:
-                if not self._update(f"#models-state-{index}", _UNAVAILABLE):
+                seen.add(_State.UNAVAILABLE)
+                marker = _MARKERS[_State.UNAVAILABLE]
+                if not self._update(f"#models-state-{index}", marker):
                     return
                 continue
             total += len(found)
-            state = _EMPTY if not found else _plural(len(found), "model")
-            if not self._update(f"#models-state-{index}", state):
+            if not found:
+                seen.add(_State.EMPTY)
+                if not self._update(f"#models-state-{index}", _MARKERS[_State.EMPTY]):
+                    return
+                continue
+            seen.add(_State.POPULATED)
+            if not self._update(f"#models-state-{index}", _plural(len(found), "model")):
                 return
-            if found:
-                try:
-                    container = self.query_one(f"#models-files-{index}", Vertical)
-                except NoMatches:
-                    return  # recomposed away mid-scan
-                await container.mount_all(
-                    ModelRow(model, self._label(model, path), classes="model-row")
-                    for model in found
-                )
+            try:
+                container = self.query_one(f"#models-files-{index}", Vertical)
+            except NoMatches:
+                return  # recomposed away mid-scan
+            await container.mount_all(
+                ModelRow(model, self._label(model, path), classes="model-row")
+                for model in found
+            )
         summary = (
             f"{_plural(len(settings.models_directories), 'directory', 'directories')}"
             f" · {_plural(total, 'model')}"
         )
         self._update("#models-summary", summary)
+        self._show_fix_steps(seen)
         self._focus_first_row()
+
+    def _show_fix_steps(self, seen: set[_State]) -> None:
+        """Show a step per problem state that occurred; none hides the panel."""
+        try:
+            panel = self.query_one("#fix-panel", FixPanel)
+        except NoMatches:
+            return  # recomposed away mid-scan
+        panel.steps = tuple(_FIX_STEPS[state] for state in _STEP_ORDER if state in seen)
 
     @staticmethod
     def _label(model: Path, root: Path) -> str:
-        """How a row is shown: the model's path *relative to* the configured
-        directory, so a model in a subfolder keeps that context without
-        repeating the directory prefix on every row."""
+        """The model's path relative to its configured directory."""
         try:
             return str(model.relative_to(root.resolve()))
         except ValueError:
-            # The scan resolves its root, so a symlinked configured directory
-            # can yield paths outside the unresolved `root` we were handed.
+            # The scan resolves its root, so a symlinked dir yields outside paths.
             return model.name
 
     def _focus_first_row(self) -> None:
-        """Put focus on the first model once there is one to focus.
-
-        Rows don't exist until the scan mounts them, so this runs at the end of
-        the scan rather than on mount. It yields to anything the user already
-        focused while waiting.
-        """
+        """Focus the first model, unless the user already focused one."""
         if isinstance(self.focused, ModelRow):
             return
         rows = self.query(ModelRow)
@@ -233,12 +238,7 @@ class ModelsScreen(Screen):
     # -- selection ---------------------------------------------------------
 
     def on_model_row_selected(self, message: ModelRow.Selected) -> None:
-        """Confirm the choice and say plainly that nothing acts on it yet.
-
-        Validating a model needs a spec to check against and a live Blender
-        connection to check through; neither exists. This is the seam that work
-        replaces — the message and its `path` are already right.
-        """
+        """Confirm the choice; validation has nothing to run against yet."""
         self.notify(
             f"{message.path.name} selected — model validation is not wired up yet."
         )

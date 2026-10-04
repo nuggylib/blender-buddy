@@ -109,7 +109,7 @@ Each directory reports one of four states, and the difference matters:
 | `⚠ models unavailable` | The directory exists but can't be read; check its permissions |
 | `✗ not found` | The directory is gone — press `s` to re-point it, or recreate it |
 
-The dashboard only checks that a directory *exists*, so an empty one shows there as a healthy `✓ found`. This page is where that shows up. Steps for fixing each state sit at the bottom of it.
+The dashboard only checks that a directory *exists*, so an empty one shows there as a healthy `✓ found`. This page is where that shows up. When something needs fixing, the steps for it appear in a block below the list that stays put while the list scrolls — and nothing appears when every directory is healthy.
 
 Selecting a model confirms the choice but does nothing further yet — validating one needs a spec to check against and a live Blender connection, which are still to come.
 

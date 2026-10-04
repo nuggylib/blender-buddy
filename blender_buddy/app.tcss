@@ -104,13 +104,19 @@ ModelsScreen .fix-step {
     height: auto;
 }
 
-ModelsScreen #fix-heading {
-    margin-top: 1;
-}
-
-/* The one scrolling page: a models directory can hold any number of files.
-   `height: 1fr` gives it the space between header and footer to scroll within;
-   `can_focus=False` on the container keeps it out of the row focus chain. */
+/* The model list scrolls; `height: 1fr` gives it whatever is left between the
+   header, the docked fix block, and the footer. `can_focus=False` on the
+   container (set in Python) keeps it out of the row focus chain. */
 ModelsScreen #detail-panel {
     height: 1fr;
+}
+
+/* Sibling of the 1fr scroller, not docked: a docked container with auto height
+   renders at one row. Capped so it can't crowd out the list. */
+ModelsScreen #fix-panel {
+    width: 100%;
+    height: auto;
+    max-height: 50%;
+    padding: 0 2;
+    border-top: solid $panel;
 }

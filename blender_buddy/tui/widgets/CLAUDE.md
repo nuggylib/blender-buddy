@@ -23,6 +23,16 @@ in the screen that owns it.
   directory) is escaped inside the widget: it is always a filename, and a model
   called `sedan[wip].blend` would otherwise be read as markup and render with a
   chunk missing.
+- `fix_panel.py` — `FixPanel(Vertical)`, the "How to fix issues" block on a
+  page whose content scrolls. Assign `steps` (rendered strings); an empty tuple
+  hides it. Two constraints worth keeping:
+  - Children come from `compose` via a `recompose=True` reactive, **not**
+    `mount_all`. Children mounted into an already-laid-out `height: auto`
+    container don't re-measure it.
+  - It is **not** `dock: bottom`. A docked container with `height: auto`
+    renders at one row, clipping all but its heading. It sits as a plain
+    sibling of the `1fr` scroller instead, which gets the same result with the
+    variable height on the side that can report it.
 
 ## Conventions
 - **A widget never navigates.** It names where it leads (`target`) and posts a
