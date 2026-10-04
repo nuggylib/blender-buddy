@@ -22,6 +22,10 @@ this package sits at the repository root, not under `src/`).
   it opens the wizard over the dashboard via `_open_setup` (edit mode when valid;
   a cancel keeps the prior config) — so a cancelled `--setup` never strands a
   config-less dashboard. The dashboard's `s` key also re-opens via `_open_setup`.
+  `SCREENS` registers the dashboard (the hub) plus the per-section detail
+  screens its cards name as their `target` — `blender-detail`, `models`,
+  `godot-detail`. Everything there is pushed **by name** and constructed with no
+  arguments; screens receive data by reading app-level state instead.
   Both `_first_run`/`_open_setup` are `@work(exclusive=True, group="setup")`
   (one wizard at a time) and run `push_screen_wait` inside the worker; saves go
   through `_save`, which turns an `OSError` into an error notice instead of
@@ -44,7 +48,8 @@ resolved canary/dev string there before freezing a binary; it never exists in a
 normal checkout. Do not commit or hand-edit it.
 
 ## Subpackages (categories)
-- `tui/` — Textual screens and widgets.
+- `tui/` — Textual screens (`tui/screens/`) and the reusable widgets they are
+  assembled from (`tui/widgets/`).
 - `config/` — persistence: the on-disk config first-time setup writes and every
   launch reads (`Settings`, path resolution, atomic load/save). No Textual, no I/O
   beyond the config file.
