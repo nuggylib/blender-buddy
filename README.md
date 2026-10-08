@@ -81,10 +81,12 @@ The config file lives in the platform's per-user config directory:
 | Platform | Location |
 |----------|----------|
 | macOS    | `~/Library/Application Support/blender-buddy/config.toml` |
-| Linux    | `~/.config/blender-buddy/config.toml` (honors `$XDG_CONFIG_HOME`) |
+| Linux    | `~/.config/blender-buddy/config.toml` |
 | Windows  | `%LOCALAPPDATA%\mcnuggies\blender-buddy\config.toml` |
 
-Set `$BLENDER_BUDDY_CONFIG` to a full file path to override the location (used by the test suite so it never touches your real config).
+On macOS and Linux, `$XDG_CONFIG_HOME` overrides the directory if set; Windows ignores it.
+
+Set `$BLENDER_BUDDY_CONFIG` to a full file path to override the location outright (used by the test suite so it never touches your real config).
 
 ## Using the dashboard
 
