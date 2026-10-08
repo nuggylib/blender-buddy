@@ -24,6 +24,7 @@ from blender_buddy.tui.screens.blender_detail import BlenderDetailScreen
 from blender_buddy.tui.screens.dashboard import DashboardScreen
 from blender_buddy.tui.screens.godot_detail import GodotDetailScreen
 from blender_buddy.tui.screens.models import ModelsScreen
+from blender_buddy.tui.screens.specs import SpecsScreen
 from blender_buddy.tui.widgets.section_card import SectionCard
 
 
@@ -59,8 +60,8 @@ async def _wait_for(pilot, predicate, tries=100):
     return False
 
 
-async def test_dashboard_shows_three_sections_in_order(tmp_path, monkeypatch):
-    """Scenario 1 — a valid config renders Blender → Models → Godot with values."""
+async def test_dashboard_shows_four_sections_in_order(tmp_path, monkeypatch):
+    """Scenario 1 — a valid config renders Blender → Specs → Models → Godot."""
     monkeypatch.setattr(discovery, "find_projects", lambda root, max_depth=4: [])
     cfg = tmp_path / "config.toml"
     models = tmp_path / "models"
@@ -76,7 +77,12 @@ async def test_dashboard_shows_three_sections_in_order(tmp_path, monkeypatch):
         assert isinstance(screen, DashboardScreen)
 
         order = [section.id for section in screen.query(".section")]
-        assert order == ["section-blender", "section-models", "section-godot"]
+        assert order == [
+            "section-blender",
+            "section-specs",
+            "section-models",
+            "section-godot",
+        ]
 
         assert _models_rows(screen) == [f"{models}  ✓ found"]
         assert str(godot) in _text(screen.query_one("#godot-value", Static))
@@ -124,8 +130,32 @@ async def test_dashboard_lists_every_models_directory(tmp_path, monkeypatch):
         ]
 
 
+async def test_dashboard_specs_card_carries_no_status_marker(tmp_path, monkeypatch):
+    """Specs has no configured location to stat, so a ✓/✗ would be theater — it
+    gets a muted line saying the feature is not built yet."""
+    monkeypatch.setattr(discovery, "find_projects", lambda root, max_depth=4: [])
+    cfg = tmp_path / "config.toml"
+    models = tmp_path / "models"
+    models.mkdir()
+    godot = tmp_path / "godot"
+    godot.mkdir()
+    _seed(cfg, models, godot)
+
+    app = BlenderBuddyApp(config_path=cfg)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        card = app.screen.query_one("#section-specs", SectionCard)
+        assert _text(card.query_one(".section-title", Static)) == "Specs"
+        value = card.query_one("#specs-value", Static)
+        assert "coming soon" in _text(value)
+        assert "✓" not in _text(value)
+        assert "✗" not in _text(value)
+
+
 async def test_dashboard_shows_setup_prompt_when_corrupt(tmp_path):
-    """Corrupt/None state — a single 'run setup' prompt, not empty section shells."""
+    """Corrupt/None state — the 'run setup' prompt rather than empty section
+    shells for the configured anchors. Specs reads no config, so it is the one
+    section that still renders, and the prompt comes first."""
     cfg = tmp_path / "config.toml"
     cfg.write_text("this is not valid toml {{{")
 
@@ -137,7 +167,11 @@ async def test_dashboard_shows_setup_prompt_when_corrupt(tmp_path):
         assert app.settings is None
         prompt = screen.query_one("#setup-prompt", Static)
         assert "setup" in _text(prompt).lower()
-        assert not screen.query(".section")  # no section shells rendered
+        assert [section.id for section in screen.query(".section")] == ["section-specs"]
+        assert [node.id for node in screen.query("#setup-prompt, #config-panel")] == [
+            "setup-prompt",
+            "config-panel",
+        ]
 
 
 async def test_dashboard_godot_count_from_worker(tmp_path, monkeypatch):
@@ -243,24 +277,25 @@ async def test_dashboard_focuses_first_section_on_mount(tmp_path, monkeypatch):
 
 
 async def test_dashboard_focus_chain_is_exactly_the_sections(tmp_path, monkeypatch):
-    """`down` steps through the three section cards and nothing else.
+    """`down` steps through the four section cards and nothing else.
 
     Guards the navigation contract: a focusable widget sneaking onto the screen
     (a Button in a card, a scrolling wrapper) would add a stop the user has to
-    arrow past to reach the next section.
+    arrow past to reach the next section. The wrap back to the top is what
+    proves there is no fifth stop.
     """
     app = _seeded_app(tmp_path, monkeypatch, directories=3)
     async with app.run_test() as pilot:
         await pilot.pause()
         visited = [app.screen.focused]
-        for _ in range(3):
+        for _ in range(4):
             await pilot.press("down")
             visited.append(app.screen.focused)
 
         assert all(isinstance(widget, SectionCard) for widget in visited)
-        # Three stops, then back to the top — the chain holds no fourth widget.
         assert [widget.id for widget in visited] == [
             "section-blender",
+            "section-specs",
             "section-models",
             "section-godot",
             "section-blender",
@@ -282,7 +317,7 @@ async def test_dashboard_vim_keys_move_focus(tmp_path, monkeypatch):
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("j")
-        assert app.screen.focused.id == "section-models"
+        assert app.screen.focused.id == "section-specs"
         await pilot.press("k")
         assert app.screen.focused.id == "section-blender"
 
@@ -290,12 +325,13 @@ async def test_dashboard_vim_keys_move_focus(tmp_path, monkeypatch):
 async def test_dashboard_enter_opens_each_sections_detail_screen(tmp_path, monkeypatch):
     """Each section opens its own detail screen, and `escape` comes back.
 
-    Walks all three in one app so the full round trip — push, pop, and the focus
+    Walks all four in one app so the full round trip — push, pop, and the focus
     still being where it was left — is exercised, not just a single hop.
     """
     app = _seeded_app(tmp_path, monkeypatch)
     expected = [
         ("section-blender", BlenderDetailScreen),
+        ("section-specs", SpecsScreen),
         ("section-models", ModelsScreen),
         ("section-godot", GodotDetailScreen),
     ]
@@ -327,7 +363,7 @@ async def test_dashboard_restores_focus_after_settings_change(tmp_path, monkeypa
     app = _seeded_app(tmp_path, monkeypatch)
     async with app.run_test() as pilot:
         await pilot.pause()
-        await pilot.press("down")  # focus Models
+        await pilot.press("down", "down")  # focus Models
         assert app.screen.focused.id == "section-models"
 
         replacement = tmp_path / "replacement"
@@ -360,23 +396,29 @@ async def test_dashboard_restores_focus_to_first_when_section_is_gone(
         assert app.screen.focused.id == "section-blender"
 
 
-async def test_dashboard_navigation_is_inert_without_a_valid_config(tmp_path):
-    """A corrupt config renders a prompt and no sections — so the navigation
-    keys have nothing to act on and must not raise."""
+async def test_dashboard_navigation_without_a_valid_config_acts_on_the_one_card(
+    tmp_path,
+):
+    """A corrupt config leaves Specs as the only card, so the navigation keys
+    are no longer no-ops: focus lands on it, the movement keys stay put rather
+    than raising, and `enter` opens its screen."""
     cfg = tmp_path / "config.toml"
     cfg.write_text("this is not valid toml {{{")
 
     app = BlenderBuddyApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
-        assert not app.screen.query(SectionCard)
-        assert app.screen.focused is None
+        assert app.screen.focused.id == "section-specs"
 
-        await pilot.press("down", "up", "j", "k", "enter")
+        await pilot.press("down", "up", "j", "k")
         await pilot.pause()
+        assert app.screen.focused.id == "section-specs"
 
-        assert isinstance(app.screen, DashboardScreen)
-        assert app.screen.focused is None
+        await pilot.press("enter")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecsScreen))
+
+        await pilot.press("escape")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, DashboardScreen))
 
 
 async def test_dashboard_quit_still_works_from_a_focused_section(tmp_path, monkeypatch):
@@ -412,9 +454,10 @@ async def test_dashboard_footer_advertises_the_navigation_keys(tmp_path, monkeyp
         assert ("q", "Quit") in shown
 
 
-async def test_dashboard_footer_drops_open_without_a_valid_config(tmp_path):
-    """No cards means no `enter` binding to advertise — the hint disappears with
-    the thing it acts on rather than lingering as a dead key."""
+async def test_dashboard_footer_keeps_open_without_a_valid_config(tmp_path):
+    """The `enter` hint tracks the thing it acts on rather than lingering as a
+    dead key — and with no valid config the Specs card is still there to open,
+    so `Open` is advertised."""
     cfg = tmp_path / "config.toml"
     cfg.write_text("this is not valid toml {{{")
 
@@ -426,5 +469,5 @@ async def test_dashboard_footer_drops_open_without_a_valid_config(tmp_path):
             for _node, binding, enabled, _tooltip in app.screen.active_bindings.values()
             if binding.show and enabled
         }
-        assert "Open" not in descriptions
+        assert "Open" in descriptions
         assert "Setup" in descriptions
