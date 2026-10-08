@@ -1,8 +1,9 @@
 """The dashboard screen — the app's landing view and navigation hub.
 
-Displays the three configured anchors — **Blender (top) → Models (middle) →
-Godot (bottom)** — each with a lightweight live existence/validity marker so the
-user can tell at a glance whether a saved path has since moved or been deleted.
+Displays four sections — **Blender → Specs → Models → Godot**. The three
+configured anchors each carry a lightweight live existence/validity marker so
+the user can tell at a glance whether a saved path has since moved or been
+deleted; Specs is config-free and renders a muted placeholder line instead.
 
 **Navigation:** each section is a focusable `SectionCard`. `↑`/`↓` (and `j`/`k`)
 step through them, `enter` opens the focused section's detail screen. The cards
@@ -49,8 +50,9 @@ class DashboardScreen(Screen):
 
     Reads `self.app.settings` and re-renders whenever it changes (an edit via `s`
     reassigns it). When there is no valid config (`settings is None`) it shows a
-    single "run setup" prompt rather than empty section shells — so there is
-    nothing focusable, and the navigation keys are harmless no-ops.
+    "run setup" prompt in place of the config-derived sections — but the Specs
+    card reads no settings, so it renders there too and the navigation keys act
+    on exactly that one card.
 
     Future: live validation results driven by a Blender-polling worker, filling
     in the detail screens the sections already open.
@@ -74,9 +76,11 @@ class DashboardScreen(Screen):
                 "Setup incomplete or unreadable — press 's' to run setup.",
                 id="setup-prompt",
             )
+            yield Vertical(self._specs_section(), id="config-panel")
         else:
             yield Vertical(
                 self._blender_section(settings),
+                self._specs_section(),
                 self._models_section(settings),
                 self._godot_section(settings),
                 id="config-panel",
@@ -116,8 +120,7 @@ class DashboardScreen(Screen):
         """Focus `section_id`, falling back to the first section.
 
         The fallback covers both the initial mount and a recompose that dropped
-        the previously focused section (a config edit can remove one). With no
-        valid config there are no cards at all, and this is a no-op.
+        the previously focused section (a config edit can remove one).
         """
         cards = list(self.query(SectionCard))
         if not cards:
@@ -146,6 +149,21 @@ class DashboardScreen(Screen):
             Static(f"Recorded version: {escape(version)}", classes="config-detail"),
             target="blender-detail",
             id="section-blender",
+            classes="section",
+        )
+
+    def _specs_section(self) -> SectionCard:
+        # No `settings` argument and no ✓/✗ marker: there is no configured specs
+        # location yet, so there is nothing to stat.
+        return SectionCard(
+            Static("Specs", classes="section-title"),
+            Static(
+                "No spec selected — spec creation and selection are coming soon.",
+                id="specs-value",
+                classes="config-detail",
+            ),
+            target="specs",
+            id="section-specs",
             classes="section",
         )
 

@@ -5,12 +5,13 @@ in the app (analogous to a route in a web app).
 
 ## Contents
 - `dashboard.py` — `DashboardScreen`, the landing view **and navigation hub**.
-  Renders the three
-  configured anchors as stacked sections — **Blender (top) → Models (middle) →
-  Godot (bottom)** — each with a live existence/validity marker. The Models
-  section renders **one row per configured directory**, in stored order, each
-  with its own independent marker (the schema and the wizard both enforce at
-  least one, so there is no empty state). It reads
+  Renders four stacked sections — **Blender → Specs → Models → Godot**. The
+  three configured anchors each carry a live existence/validity marker; **Specs
+  is config-free** — it reads no settings and renders a muted `#specs-value`
+  line with no `✓`/`✗`, because there is no configured specs location to stat
+  yet. The Models section renders **one row per configured directory**, in
+  stored order, each with its own independent marker (the schema and the wizard
+  both enforce at least one, so there is no empty state). It reads
   `self.app.settings` (app-level state) and never touches TOML or the filesystem
   beyond cheap stats: Blender validity via `detect.executable_state` (three
   states — valid / present-but-not-executable / missing — platform-aware, no
@@ -20,21 +21,22 @@ in the app (analogous to a route in a web app).
   returns (zero projects is a valid `0`). It `watch`es the app's `settings`
   reactive and `recompose`s on change, so editing config via `s` refreshes the
   view without a restart. When `self.app.settings is None` (absent/corrupt
-  config) it shows a single "run setup" prompt, not empty section shells. Its
-  `s` binding (`app.open_setup`) re-opens the setup wizard in edit mode.
+  config) it shows a "run setup" prompt in place of the three config-derived
+  sections — prompt first, with the Specs card below it. Its `s` binding
+  (`app.open_setup`) re-opens the setup wizard in edit mode.
   **Navigation:** each section is a focusable `SectionCard` (see
   `../widgets/CLAUDE.md`); `down`/`j` → `app.focus_next` and `up`/`k` →
   `app.focus_previous` step through them (wrapping at both ends), and `enter` on
   a card posts `SectionCard.Opened`, which `on_section_card_opened` turns into a
   `push_screen(target)`. The cards are the screen's **only** focus stops — a
-  test asserts the chain is exactly the three sections, because anything else
+  test asserts the chain is exactly the four sections, because anything else
   focusable here is a widget the user has to arrow past. `_focus_section()`
   focuses the first section on mount and, critically, **re-focuses the same
   section after `recompose()`**: a config edit tears down every widget, so
   without the save-and-restore the user's highlight silently jumps to the top
-  after saving. With no valid config there are no cards, so the navigation keys
-  are harmless no-ops. Future work adds live validation results from a
-  Blender-polling worker.
+  after saving. With no valid config Specs is the only card, so the navigation
+  keys act on it alone and the footer still advertises `enter Open`. Future
+  work adds live validation results from a Blender-polling worker.
 - `models.py` — `ModelsScreen`, the Models detail view. One group per configured
   directory, in stored order, each ending in **one of four states**, and that
   distinction is the point of the page: a directory that *exists* but holds no
@@ -59,6 +61,11 @@ in the app (analogous to a route in a web app).
   deliberately inert seam: `on_model_row_selected` confirms the choice and says
   validation is not wired up yet, because there is no spec to validate against
   and no live Blender connection to validate through.
+- `specs.py` — `SpecsScreen` (`specs` in `SCREENS`), the Specs page. A
+  **placeholder**: a title plus a `#placeholder-note`, so `enter` on the
+  dashboard's Specs card is not a dead key. Spec creation, selection, and the
+  validation they drive land here. It is the one detail screen with **no
+  `#setup-prompt` branch** (see Conventions).
 - `blender_detail.py`, `godot_detail.py` — the other two detail screens
   (`blender-detail`, `godot-detail` in `SCREENS`). Still **placeholders**: they
   render the configured value they own plus a `#placeholder-note`. They exist so
@@ -103,6 +110,10 @@ in the app (analogous to a route in a web app).
   That is what keeps every screen pushable by name from `SCREENS`, and why each
   must tolerate `self.app.settings is None` by rendering a `#setup-prompt`
   rather than raising — `--setup` cancellation ordering can reach them that way.
+  `specs.py` is the deliberate exception: it reads no settings at all, so it has
+  no `None` branch to write and renders identically in every config state. The
+  rule's *purpose* (never raise on that push) holds; its mechanism has nothing
+  to do.
 - **Bind one key per `Binding`, not comma-joined keys, whenever the footer
   matters.** Textual expands `Binding("down,j", …)` into a separate binding per
   key, each carrying the same `description` and `key_display` — so a shown pair
