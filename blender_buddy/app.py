@@ -17,6 +17,7 @@ from blender_buddy.tui.screens.dashboard import DashboardScreen
 from blender_buddy.tui.screens.godot_detail import GodotDetailScreen
 from blender_buddy.tui.screens.models import ModelsScreen
 from blender_buddy.tui.screens.setup_wizard import SetupWizard
+from blender_buddy.tui.screens.specs import SpecsScreen
 
 
 def _resource_path(name: str) -> Path:
@@ -62,6 +63,7 @@ class BlenderBuddyApp(App):
     SCREENS = {
         "dashboard": DashboardScreen,
         "blender-detail": BlenderDetailScreen,
+        "specs": SpecsScreen,
         "models": ModelsScreen,
         "godot-detail": GodotDetailScreen,
     }

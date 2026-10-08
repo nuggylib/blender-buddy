@@ -23,9 +23,10 @@ this package sits at the repository root, not under `src/`).
   a cancel keeps the prior config) — so a cancelled `--setup` never strands a
   config-less dashboard. The dashboard's `s` key also re-opens via `_open_setup`.
   `SCREENS` registers the dashboard (the hub) plus the per-section detail
-  screens its cards name as their `target` — `blender-detail`, `models`,
-  `godot-detail`. Everything there is pushed **by name** and constructed with no
-  arguments; screens receive data by reading app-level state instead.
+  screens its cards name as their `target` — `blender-detail`, `specs`,
+  `models`, `godot-detail`, in the dashboard's visual order. Everything there
+  is pushed **by name** and constructed with no arguments; screens receive data
+  by reading app-level state instead.
   Both `_first_run`/`_open_setup` are `@work(exclusive=True, group="setup")`
   (one wizard at a time) and run `push_screen_wait` inside the worker; saves go
   through `_save`, which turns an `OSError` into an error notice instead of
