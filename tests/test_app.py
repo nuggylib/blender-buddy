@@ -105,6 +105,19 @@ async def test_v1_config_boots_dashboard_and_is_upgraded(tmp_path, monkeypatch):
     assert "schema_version = 2" in cfg.read_text()
 
 
+async def test_specs_dir_is_app_level_state_in_every_config_state(tmp_path):
+    """Screens read `self.app.specs_dir`, never `paths` directly. It comes off
+    the config *path*, so it resolves for a corrupt config too — which is what
+    lets the Specs page work without any settings at all."""
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("this is not valid toml {{{")
+    app = BlenderBuddyApp(config_path=cfg)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.settings is None
+        assert app.specs_dir == tmp_path / "specs"
+
+
 async def test_absent_config_shows_wizard(tmp_path):
     """Scenario 1 (part 1) — no config lands on the wizard, not the dashboard."""
     app = BlenderBuddyApp(config_path=tmp_path / "config.toml")

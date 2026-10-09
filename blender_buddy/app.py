@@ -83,6 +83,16 @@ class BlenderBuddyApp(App):
         self._config_path = config_path or paths.config_file()
         self._force_setup = force_setup
 
+    @property
+    def specs_dir(self) -> Path:
+        """Where spec files live, surfaced to screens as app-level state.
+
+        Derived from the config *path*, not its contents, so it resolves even
+        when the config is absent or corrupt — and the injected `config_path`
+        test seam carries over for free.
+        """
+        return paths.specs_dir(self._config_path)
+
     def on_mount(self) -> None:
         self.theme = "textual-dark"
         state, settings = store.load(self._config_path)

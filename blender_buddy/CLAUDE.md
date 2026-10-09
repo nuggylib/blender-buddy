@@ -36,6 +36,11 @@ this package sits at the repository root, not under `src/`).
   dashboard reads and `watch`es it; after a successful save the app **reassigns**
   `self.settings` (never mutates — `Settings` is frozen) so the reactive fires
   and the dashboard refreshes without a restart.
+  `specs_dir` is a read-only property surfacing `paths.specs_dir(config_path)`
+  as app-level state. It is derived from the config *path*, not its contents, so
+  it resolves even with an absent or corrupt config, and the injected
+  `config_path` test seam carries over. Screens read `self.app.specs_dir`, never
+  `paths` directly — the same rule that keeps them off `self.app._config_path`.
 - `__main__.py` — enables `python -m blender_buddy`.
 - `app.tcss` — application-level Textual stylesheet (loaded via `App.CSS_PATH`).
 - `__init__.py` — package marker; holds `__version__`, imported from an optional
@@ -63,6 +68,9 @@ normal checkout. Do not commit or hand-edit it.
 - `models/` — source-model discovery: a bounded scan for `.blend` files under a
   configured models directory (`discovery.find_blend_files`). Locates models
   only; reading their contents belongs to `blender/`. No Textual, no UI.
+- `specs/` — validation specs: the document vocabulary (`schema.py`), the
+  model-type name rules (`naming.py`), and the JSON files on disk. The spec
+  files themselves are the list of supported model types. No Textual, no UI.
 
 ## Conventions
 - Group new code by category into subpackages here rather than adding loose
