@@ -75,6 +75,11 @@ in the app (analogous to a route in a web app).
   Models screen's empty directory. `enter` on a row is a deliberately inert
   seam, like `ModelsScreen`'s: it confirms the choice and says spec selection is
   not wired up yet, because nothing persists a current spec.
+  **`n` creates:** `action_new_spec` runs a `@work(exclusive=True,
+  group="new-spec")` worker that `push_screen_wait`s a `NewSpecModal` and, on a
+  non-`None` return, notifies, `recompose`s, reloads, and hands focus to the
+  **new** row rather than row one (`_focus_after_load`). `exclusive` is what
+  stops a fast double `n` stacking two modals.
   It is the one detail screen with **no `#setup-prompt` branch** (see
   Conventions), and the reason is now stronger rather than weaker: it reads
   `self.app.specs_dir`, a path derived from the config *path* rather than its
@@ -84,6 +89,25 @@ in the app (analogous to a route in a web app).
   render the configured value they own plus a `#placeholder-note`. They exist so
   navigation is uniform and no `enter` is a dead key; `models.py` is the pattern
   each should follow when it grows real content.
+- `new_spec_modal.py` — `NewSpecModal(ModalScreen[Path | None])`, the one
+  question a new spec needs: a model-type name. Returns the created file's path
+  via `dismiss()`, or `None` on cancel. The codebase's **first `ModalScreen`**
+  (the wizard is a plain `Screen[…]`), so it owns its overlay layout in
+  `DEFAULT_CSS` — `align: center middle` plus a bordered panel — the way the
+  wizard does.
+  It takes **no constructor arguments**: it reads `self.app.specs_dir`, which is
+  the whole point — a second entry point to the create flow is one
+  `push_screen_wait` inside a worker, not a reimplementation.
+  Key contract: **Enter in the Input creates** — the opposite call from the
+  wizard's models box, where Enter Adds and never advances, because there the
+  field feeds a list and here it *is* the whole form. `Input.Changed` previews
+  the resulting filename (`→ specs/space-ship.json`) and clears a stale error,
+  so the normalization is visible before the user commits to it. `q` is shadowed
+  with a no-op for the usual reason (a focused `Button` would bubble it to the
+  app's quit). Every failure — invalid name, duplicate, unwritable directory —
+  keeps the modal up with a message in `#spec-status` and the Input's text
+  intact, and writes nothing. The write itself is one small file done inline,
+  like `app._save`: no worker needed.
 - `setup_wizard.py` — `SetupWizard(Screen[Settings | None])`, the first-time
   setup flow. A 3-step Back/Next `ContentSwitcher` (Blender executable → models
   directories → Godot root) that returns a `Settings` via `dismiss()`, or `None`
@@ -101,8 +125,9 @@ in the app (analogous to a route in a web app).
   invite a duplicate and trip the unadded-text guard on a no-op edit).
 
 ## Conventions
-- One screen per file, named `<Name>Screen` (the wizard is the deliberate
-  exception — it is a modal returning a value, not a landing view).
+- One screen per file, named `<Name>Screen`. The value-returning screens are the
+  deliberate exceptions — `SetupWizard` and `NewSpecModal` are flows that return
+  a result, not landing views, and are named for what they are.
 - Register landing screens in `BlenderBuddyApp.SCREENS` and navigate with
   `push_screen` / `pop_screen`; push value-returning screens with
   `push_screen_wait` from inside a `@work` worker.

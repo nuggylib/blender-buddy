@@ -9,7 +9,7 @@ wiring (worker → rows → fix steps) and the navigation.
 
 import json
 
-from textual.widgets import Static
+from textual.widgets import Button, Input, Static
 
 from blender_buddy.app import BlenderBuddyApp
 from blender_buddy.config import store as config_store
@@ -18,6 +18,7 @@ from blender_buddy.godot import discovery
 from blender_buddy.specs import schema
 from blender_buddy.specs import store as specs_store
 from blender_buddy.tui.screens.dashboard import DashboardScreen
+from blender_buddy.tui.screens.new_spec_modal import NewSpecModal
 from blender_buddy.tui.screens.specs import SpecsScreen
 from blender_buddy.tui.widgets.spec_row import SpecRow
 
@@ -245,6 +246,283 @@ async def test_specs_screen_enter_on_a_row_persists_nothing(tmp_path, monkeypatc
         assert any("vehicle" in notice for notice in notices)
         assert any("not wired up yet" in notice for notice in notices)
         assert config_store.load(app._config_path) == before
+
+
+# -- the create flow -------------------------------------------------------
+
+
+async def _open_modal(pilot, app):
+    """Press `n` and wait for the modal to take over."""
+    await pilot.press("n")
+    assert await _wait_for(pilot, lambda: isinstance(app.screen, NewSpecModal))
+
+
+def _status(app):
+    return _text(app.screen.query_one("#spec-status", Static))
+
+
+async def test_specs_screen_footer_advertises_the_new_spec_key(tmp_path, monkeypatch):
+    """The footer is the only place `n` is discoverable, so assert on what it
+    draws from: the screen's active bindings."""
+    app = _app(tmp_path, monkeypatch, specs=("vehicle",))
+    async with app.run_test() as pilot:
+        await _open_specs(pilot, app)
+        shown = [
+            (binding.key_display or binding.key, binding.description)
+            for _node, binding, enabled, _tooltip in app.screen.active_bindings.values()
+            if binding.show and enabled
+        ]
+        assert ("n", "New spec") in shown
+        assert ("escape", "Back") in shown
+        assert ("s", "Setup") in shown
+        assert ("q", "Quit") in shown
+        # The movement keys are bound but not advertised: the `VerticalScroll`
+        # ancestor's own hidden scroll bindings shadow the screen's shown `Move`
+        # entry. Same on `ModelsScreen` — a scroller page trades the footer hint
+        # for the scrolling, and the keys themselves still move focus (below).
+        assert "Move" not in [description for _key, description in shown]
+        assert {"down", "j", "up", "k"} <= set(app.screen.active_bindings)
+
+
+async def test_new_spec_creates_the_file_and_focuses_its_row(tmp_path, monkeypatch):
+    """The whole flow: `n` → type → enter → file on disk, modal closed, the new
+    row present **and focused** rather than focus snapping back to row one."""
+    app = _app(tmp_path, monkeypatch, specs=("vehicle",))
+    async with app.run_test() as pilot:
+        await _open_specs(pilot, app)
+        assert await _wait_for(pilot, lambda: len(app.screen.query(SpecRow)) == 1)
+
+        await _open_modal(pilot, app)
+        app.screen.query_one("#spec-name", Input).value = "Space Ship"
+        await pilot.pause()
+        # The normalization is visible before committing to it.
+        assert "specs/space-ship.json" in _text(
+            app.screen.query_one("#spec-preview", Static)
+        )
+
+        await pilot.press("enter")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecsScreen))
+
+        created = tmp_path / "specs" / "space-ship.json"
+        assert json.loads(created.read_text()) == schema.skeleton("space-ship")
+
+        screen = app.screen
+        assert await _wait_for(pilot, lambda: len(screen.query(SpecRow)) == 2)
+        assert _row_labels(screen) == ["▸ space-ship", "▸ vehicle"]
+        assert await _wait_for(
+            pilot,
+            lambda: (
+                isinstance(screen.focused, SpecRow)
+                and screen.focused.model_type == "space-ship"
+            ),
+        )
+        notices = [str(notification.message) for notification in app._notifications]
+        assert any("Created space-ship.json" in notice for notice in notices)
+
+
+async def test_new_spec_creates_the_specs_dir_on_first_use(tmp_path, monkeypatch):
+    """A fresh install has no `specs/` until the first create makes it."""
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await _open_specs(pilot, app)
+        assert await _wait_for(pilot, lambda: bool(app.screen.query("#specs-empty")))
+        assert not (tmp_path / "specs").exists()
+
+        await _open_modal(pilot, app)
+        app.screen.query_one("#spec-name", Input).value = "vehicle"
+        await pilot.press("enter")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecsScreen))
+
+        assert (tmp_path / "specs" / "vehicle.json").is_file()
+        screen = app.screen
+        assert await _wait_for(pilot, lambda: _row_labels(screen) == ["▸ vehicle"])
+        assert not screen.query("#specs-empty")
+
+
+async def test_new_spec_rejects_a_duplicate_name_without_touching_the_file(
+    tmp_path, monkeypatch
+):
+    """Never overwrite an existing spec. The modal stays up with a message and
+    the Input keeps its text, so the user can just rename."""
+    app = _app(tmp_path, monkeypatch, specs=("vehicle",))
+    existing = tmp_path / "specs" / "vehicle.json"
+    before = existing.read_bytes()
+
+    async with app.run_test() as pilot:
+        await _open_specs(pilot, app)
+        await _open_modal(pilot, app)
+
+        name = app.screen.query_one("#spec-name", Input)
+        name.value = "Vehicle"  # normalizes onto the existing one
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert isinstance(app.screen, NewSpecModal)
+        assert "already exists" in _status(app)
+        assert "vehicle" in _status(app)  # quotes the *normalized* name
+        assert name.value == "Vehicle"
+        assert existing.read_bytes() == before
+        assert len(list((tmp_path / "specs").glob("*.json"))) == 1
+
+
+async def test_new_spec_rejects_an_invalid_name_and_writes_nothing(
+    tmp_path, monkeypatch
+):
+    """Each rule gets its own message, and nothing reaches the filesystem."""
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await _open_specs(pilot, app)
+        await _open_modal(pilot, app)
+        name = app.screen.query_one("#spec-name", Input)
+
+        for value, expected in (
+            ("", "Enter a name"),
+            ("../escape", "letters, numbers"),
+            ("my.spec", "letters, numbers"),
+            ("con", "reserved"),
+            ("v" * 65, "64 characters"),
+        ):
+            name.value = value
+            await pilot.press("enter")
+            await pilot.pause()
+            assert isinstance(app.screen, NewSpecModal), value
+            assert expected in _status(app), value
+
+        assert not (tmp_path / "specs").exists()
+
+
+async def test_new_spec_clears_a_stale_error_as_the_user_retypes(tmp_path, monkeypatch):
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await _open_specs(pilot, app)
+        await _open_modal(pilot, app)
+
+        name = app.screen.query_one("#spec-name", Input)
+        name.value = "my.spec"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert _status(app)
+
+        name.value = "myspec"
+        await pilot.pause()
+        assert _status(app) == ""
+
+
+async def test_new_spec_surfaces_an_unwritable_specs_dir(tmp_path, monkeypatch):
+    """An OSError keeps the modal up with the reason rather than crashing it."""
+    app = _app(tmp_path, monkeypatch)
+
+    def _boom(specs_dir, model_type):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(specs_store, "create", _boom)
+
+    async with app.run_test() as pilot:
+        await _open_specs(pilot, app)
+        await _open_modal(pilot, app)
+        app.screen.query_one("#spec-name", Input).value = "vehicle"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert isinstance(app.screen, NewSpecModal)
+        assert "Could not create spec" in _status(app)
+        assert "Permission denied" in _status(app)
+
+
+async def test_new_spec_escape_cancels_and_writes_nothing(tmp_path, monkeypatch):
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await _open_specs(pilot, app)
+        await _open_modal(pilot, app)
+        app.screen.query_one("#spec-name", Input).value = "vehicle"
+
+        await pilot.press("escape")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecsScreen))
+        assert not (tmp_path / "specs").exists()
+        assert not app.screen.query(SpecRow)
+
+
+async def test_new_spec_cancel_button_writes_nothing(tmp_path, monkeypatch):
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await _open_specs(pilot, app)
+        await _open_modal(pilot, app)
+        app.screen.query_one("#cancel-spec", Button).press()
+
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecsScreen))
+        assert not (tmp_path / "specs").exists()
+
+
+async def test_new_spec_create_button_creates(tmp_path, monkeypatch):
+    """The button and `enter` are the same path, so both are covered."""
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await _open_specs(pilot, app)
+        await _open_modal(pilot, app)
+        app.screen.query_one("#spec-name", Input).value = "vehicle"
+        app.screen.query_one("#create-spec", Button).press()
+
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecsScreen))
+        assert (tmp_path / "specs" / "vehicle.json").is_file()
+
+
+async def test_new_spec_q_does_not_quit_the_app(tmp_path, monkeypatch):
+    """`q` while a Button holds focus must be absorbed by the modal — but `q` on
+    the page itself still quits."""
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await _open_specs(pilot, app)
+        await _open_modal(pilot, app)
+
+        modal = app.screen
+        modal.query_one("#create-spec", Button).focus()
+        await pilot.pause()
+        await pilot.press("q")
+        await pilot.pause()
+        assert app.screen is modal
+        assert app.is_running
+
+        await pilot.press("escape")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecsScreen))
+        await pilot.press("q")
+        assert await _wait_for(pilot, lambda: not app.is_running)
+
+
+async def test_new_spec_double_n_does_not_stack_two_modals(tmp_path, monkeypatch):
+    """`exclusive=True` on the worker is what guards this."""
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await _open_specs(pilot, app)
+        await pilot.press("n")
+        await pilot.press("n")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, NewSpecModal))
+
+        await pilot.press("escape")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecsScreen))
+
+
+async def test_new_spec_works_without_a_valid_config(tmp_path):
+    """`specs_dir` comes from the config *path*, so the create flow works with
+    `settings is None` — the strongest form of the no-`#setup-prompt` rule."""
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("this is not valid toml {{{")
+
+    app = BlenderBuddyApp(config_path=cfg)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.settings is None
+        await pilot.press("enter")  # Specs is the only card there is
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecsScreen))
+
+        await _open_modal(pilot, app)
+        app.screen.query_one("#spec-name", Input).value = "vehicle"
+        await pilot.press("enter")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecsScreen))
+
+        assert (tmp_path / "specs" / "vehicle.json").is_file()
+        screen = app.screen
+        assert await _wait_for(pilot, lambda: _row_labels(screen) == ["▸ vehicle"])
+        assert not screen.query("#setup-prompt")
 
 
 async def test_specs_screen_escape_returns_to_the_dashboard(tmp_path, monkeypatch):

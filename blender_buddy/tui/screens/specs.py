@@ -1,8 +1,12 @@
-"""The Specs screen — the validation specs on disk.
+"""The Specs screen — the validation specs on disk, and the way to make one.
 
 One focusable row per `specs/*.json`, with a fix block for the files that could
 not be read. Zero specs is the normal state on a fresh install, not a problem,
 so it gets a plain note and contributes no fix step.
+
+`n` opens `NewSpecModal` and reloads if it wrote something. The modal takes no
+arguments and returns a `Path`, so a second entry point to the create flow is
+one `await` away rather than a reimplementation.
 
 Unlike its sibling detail screens it has **no `#setup-prompt` branch**, and the
 reason is now stronger rather than weaker: it reads `self.app.specs_dir`, a path
@@ -16,6 +20,7 @@ The directory listing parses JSON per file, so it runs in a `@work` worker via
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from textual import work
@@ -28,6 +33,7 @@ from textual.widgets import Footer, Header, Static
 
 from blender_buddy.specs import store
 from blender_buddy.specs.store import SpecState
+from blender_buddy.tui.screens.new_spec_modal import NewSpecModal
 from blender_buddy.tui.widgets.fix_panel import FixPanel
 from blender_buddy.tui.widgets.spec_row import SpecRow
 
@@ -77,6 +83,7 @@ class SpecsScreen(Screen):
 
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
+        Binding("n", "new_spec", "New spec"),
         ("s", "app.open_setup", "Setup"),
         # One binding per key: Textual expands a comma-joined pair into one
         # binding each, drawing the footer entry twice.
@@ -99,7 +106,33 @@ class SpecsScreen(Screen):
         yield FixPanel(id="fix-panel")
         yield Footer()
 
+    def __init__(self) -> None:
+        super().__init__()
+        # Set by the create flow so the load hands focus to the *new* row rather
+        # than row one; cleared once it has been honored.
+        self._focus_after_load: Path | None = None
+
     def on_mount(self) -> None:
+        self._load_specs()
+
+    # -- create ------------------------------------------------------------
+
+    def action_new_spec(self) -> None:
+        self._new_spec()
+
+    @work(exclusive=True, group="new-spec")
+    async def _new_spec(self) -> None:
+        """Open the modal and reload if it wrote something.
+
+        `exclusive` means a fast double `n` cannot stack two modals — the same
+        guard `app._open_setup` relies on.
+        """
+        path = await self.app.push_screen_wait(NewSpecModal())
+        if path is None:
+            return  # cancelled — nothing written, nothing to refresh
+        self.notify(f"Created {path.name}")
+        self._focus_after_load = path
+        await self.recompose()
         self._load_specs()
 
     # -- workers -----------------------------------------------------------
@@ -147,12 +180,19 @@ class SpecsScreen(Screen):
         panel.steps = tuple(_FIX_STEPS[state] for state in _STEP_ORDER if state in seen)
 
     def _focus_first_row(self) -> None:
-        """Focus the first spec, unless the user already focused one."""
+        """Focus the just-created spec, else the first, else leave focus alone."""
+        rows = list(self.query(SpecRow))
+        if not rows:
+            return
+        target, self._focus_after_load = self._focus_after_load, None
+        if target is not None:
+            row = next((row for row in rows if row.path == target), None)
+            if row is not None:
+                row.focus()
+                return
         if isinstance(self.focused, SpecRow):
             return
-        rows = self.query(SpecRow)
-        if rows:
-            rows.first().focus()
+        rows[0].focus()
 
     # -- selection ---------------------------------------------------------
 

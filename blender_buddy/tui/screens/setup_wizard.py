@@ -278,7 +278,12 @@ class SetupWizard(Screen[Settings | None]):
 
     @on(Input.Submitted, "#models-dir")
     def _on_models_submitted(self) -> None:
-        """Enter in the models box **adds**; it does not advance the wizard."""
+        """Enter in the models box **adds**; it does not advance the wizard.
+
+        The opposite call from `NewSpecModal`, where Enter creates: there the
+        field *is* the whole form, here it feeds a list the user is still
+        building.
+        """
         self._add_models()
 
     @on(Button.Pressed, "#add-models")
