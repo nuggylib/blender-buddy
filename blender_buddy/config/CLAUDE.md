@@ -11,6 +11,11 @@ every later launch reads. This is the first persistence category in the project.
   a list so `tomli_w` writes a TOML array.
 - `paths.py` — `config_file()` resolves where the config lives: `$BLENDER_BUDDY_CONFIG`
   wins (the test/injection seam), else the `platformdirs` per-user config dir.
+  `specs_dir(config_path=None)` is `specs/` beside that file — derived from the
+  config *path*, never its contents, so it resolves with an absent or corrupt
+  config and needs no `$BLENDER_BUDDY_SPECS` of its own. Spec files are
+  addressed by this path convention, not by a stored setting, which is why
+  they cost no schema bump.
 - `store.py` — `load(path)` returns `(ABSENT | VALID | CORRUPT, Settings | None)` and
   never raises into the caller; `save(path, settings)` writes once, atomically
   (temp file + `os.replace`).

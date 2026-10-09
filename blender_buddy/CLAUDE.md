@@ -36,6 +36,11 @@ this package sits at the repository root, not under `src/`).
   dashboard reads and `watch`es it; after a successful save the app **reassigns**
   `self.settings` (never mutates — `Settings` is frozen) so the reactive fires
   and the dashboard refreshes without a restart.
+  `specs_dir` is a read-only property surfacing `paths.specs_dir(config_path)`
+  as app-level state. It is derived from the config *path*, not its contents, so
+  it resolves even with an absent or corrupt config, and the injected
+  `config_path` test seam carries over. Screens read `self.app.specs_dir`, never
+  `paths` directly — the same rule that keeps them off `self.app._config_path`.
 - `__main__.py` — enables `python -m blender_buddy`.
 - `app.tcss` — application-level Textual stylesheet (loaded via `App.CSS_PATH`).
 - `__init__.py` — package marker; holds `__version__`, imported from an optional

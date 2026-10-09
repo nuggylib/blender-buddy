@@ -322,3 +322,27 @@ def test_config_file_falls_back_to_platformdirs(monkeypatch):
     resolved = paths.config_file()
     assert resolved.name == "config.toml"
     assert paths.APP_NAME in str(resolved)
+
+
+# --- specs directory resolution -------------------------------------------
+
+
+def test_specs_dir_sits_beside_the_config_file(tmp_path):
+    cfg = tmp_path / "nested" / "config.toml"
+    assert paths.specs_dir(cfg) == tmp_path / "nested" / paths.SPECS_DIRNAME
+
+
+def test_specs_dir_follows_the_config_env_override(tmp_path, monkeypatch):
+    """Point the config somewhere and the specs follow — no sibling override to
+    set, which is why there is no `$BLENDER_BUDDY_SPECS`."""
+    override = tmp_path / "custom" / "config.toml"
+    monkeypatch.setenv("BLENDER_BUDDY_CONFIG", str(override))
+    assert paths.specs_dir() == tmp_path / "custom" / paths.SPECS_DIRNAME
+
+
+def test_specs_dir_resolves_without_reading_the_config(tmp_path):
+    """Derived from the *path*, not its contents: it resolves for a config that
+    does not exist at all."""
+    cfg = tmp_path / "nope.toml"
+    assert not cfg.exists()
+    assert paths.specs_dir(cfg) == tmp_path / paths.SPECS_DIRNAME

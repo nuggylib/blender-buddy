@@ -5,9 +5,11 @@ the name rules (including the path-traversal strings the rules exist to stop),
 and create/list behavior against a real directory.
 """
 
+import json
+
 import pytest
 
-from blender_buddy.specs import naming, schema
+from blender_buddy.specs import naming, schema, store
 
 # --- vocabulary ------------------------------------------------------------
 
@@ -138,3 +140,154 @@ def test_validate_rejects_windows_reserved_names(raw):
     assert reason is not None
     assert "reserved" in reason
     assert raw.lower() in reason  # quotes the normalized name
+
+
+# --- create ----------------------------------------------------------------
+
+
+def test_create_writes_a_parseable_skeleton(tmp_path):
+    specs = tmp_path / "specs"
+    specs.mkdir()
+
+    path = store.create(specs, "vehicle")
+
+    assert path == specs / "vehicle.json"
+    text = path.read_text(encoding="utf-8")
+    assert json.loads(text) == schema.skeleton("vehicle")
+    assert text.endswith("}\n")  # trailing newline, so it diffs cleanly
+    assert "\n  " in text  # indent=2, not one dense line
+
+
+def test_create_makes_the_specs_dir_when_absent(tmp_path):
+    """`create` is the only thing that creates the directory, lazily."""
+    specs = tmp_path / "nested" / "specs"
+    assert not specs.exists()
+
+    store.create(specs, "vehicle")
+    assert (specs / "vehicle.json").is_file()
+
+
+def test_create_refuses_to_overwrite_an_existing_spec(tmp_path):
+    """O_EXCL, not a replace: the existing file must be byte-identical after."""
+    specs = tmp_path / "specs"
+    path = store.create(specs, "vehicle")
+    before = path.read_bytes()
+
+    with pytest.raises(FileExistsError):
+        store.create(specs, "vehicle")
+
+    assert path.read_bytes() == before
+
+
+# --- list_specs ------------------------------------------------------------
+
+
+def _write(specs_dir, name, payload):
+    """Hand-write a spec file; `payload` is raw text or a JSON-able object."""
+    specs_dir.mkdir(parents=True, exist_ok=True)
+    path = specs_dir / f"{name}.json"
+    if isinstance(payload, str):
+        path.write_text(payload, encoding="utf-8")
+    else:
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def test_list_specs_returns_entries_sorted_by_name(tmp_path):
+    specs = tmp_path / "specs"
+    for name in ("vehicle", "character", "prop"):
+        store.create(specs, name)
+
+    entries = store.list_specs(specs)
+    assert [entry.model_type for entry in entries] == ["character", "prop", "vehicle"]
+    assert {entry.state for entry in entries} == {store.SpecState.OK}
+    assert entries[0].path == specs / "character.json"
+
+
+def test_list_specs_flags_a_model_type_filename_disagreement(tmp_path):
+    """The stem is the identity, so the file's own `model_type` losing to it is
+    reported rather than silently preferred."""
+    specs = tmp_path / "specs"
+    _write(specs, "vehicle", schema.skeleton("spaceship"))
+
+    (entry,) = store.list_specs(specs)
+    assert entry.state is store.SpecState.MISMATCHED
+    assert entry.model_type == "vehicle"
+
+
+def test_list_specs_flags_a_missing_model_type_key(tmp_path):
+    specs = tmp_path / "specs"
+    _write(specs, "vehicle", {"mesh_roles": {}})
+
+    (entry,) = store.list_specs(specs)
+    assert entry.state is store.SpecState.MISMATCHED
+
+
+@pytest.mark.parametrize(
+    "payload",
+    ["{not json at all", "[]", '"a string"', "null", ""],
+    ids=["malformed", "array", "string", "null", "empty"],
+)
+def test_list_specs_flags_unreadable_files(tmp_path, payload):
+    """Unparseable *and* valid-JSON-wrong-type both land as UNREADABLE — the
+    fix is the same (open it or delete it) either way."""
+    specs = tmp_path / "specs"
+    _write(specs, "vehicle", payload)
+
+    (entry,) = store.list_specs(specs)
+    assert entry.state is store.SpecState.UNREADABLE
+
+
+def test_list_specs_keeps_the_good_entries_beside_a_bad_one(tmp_path):
+    """One malformed file must never blank the list — the catch is per file."""
+    specs = tmp_path / "specs"
+    store.create(specs, "vehicle")
+    store.create(specs, "character")
+    _write(specs, "broken", "{nope")
+
+    entries = store.list_specs(specs)
+    assert [entry.model_type for entry in entries] == [
+        "broken",
+        "character",
+        "vehicle",
+    ]
+    assert [entry.state for entry in entries] == [
+        store.SpecState.UNREADABLE,
+        store.SpecState.OK,
+        store.SpecState.OK,
+    ]
+
+
+def test_list_specs_on_a_missing_dir_returns_empty_and_creates_nothing(tmp_path):
+    """Read-only: a fresh install gets no empty folder in its config dir."""
+    specs = tmp_path / "specs"
+
+    assert store.list_specs(specs) == []
+    assert not specs.exists()
+
+
+def test_list_specs_ignores_non_json_files(tmp_path):
+    specs = tmp_path / "specs"
+    store.create(specs, "vehicle")
+    (specs / "notes.txt").write_text("scratch", encoding="utf-8")
+    (specs / "backup.json.bak").write_text("{}", encoding="utf-8")
+    (specs / "nested.json").mkdir()  # a directory named like a spec
+
+    assert [entry.model_type for entry in store.list_specs(specs)] == ["vehicle"]
+
+
+# --- count -----------------------------------------------------------------
+
+
+def test_count_counts_without_parsing(tmp_path):
+    specs = tmp_path / "specs"
+    store.create(specs, "vehicle")
+    _write(specs, "broken", "{nope")  # unparseable still counts as a spec file
+
+    assert store.count(specs) == 2
+
+
+def test_count_of_a_missing_dir_is_zero(tmp_path):
+    specs = tmp_path / "specs"
+    assert store.count(specs) == 0
+    assert not specs.exists()

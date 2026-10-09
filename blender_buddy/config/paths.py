@@ -12,6 +12,7 @@ from platformdirs import user_config_path
 
 APP_NAME = "blender-buddy"
 APP_AUTHOR = "mcnuggies"
+SPECS_DIRNAME = "specs"
 
 
 def config_file() -> Path:
@@ -25,3 +26,13 @@ def config_file() -> Path:
     if override:
         return Path(override).expanduser()
     return user_config_path(APP_NAME, APP_AUTHOR) / "config.toml"
+
+
+def specs_dir(config_path: Path | None = None) -> Path:
+    """The ``specs/`` folder beside the config file.
+
+    Derived from the config *path*, not its contents, so it resolves even when
+    the config is absent or corrupt — and ``$BLENDER_BUDDY_CONFIG`` carries over
+    for free, with no sibling override to set.
+    """
+    return (config_path or config_file()).parent / SPECS_DIRNAME
