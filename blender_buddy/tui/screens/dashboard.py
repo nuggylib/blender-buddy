@@ -37,6 +37,7 @@ from textual.widgets import Footer, Header, Static
 from blender_buddy.blender import detect
 from blender_buddy.godot import discovery
 from blender_buddy.specs import store as specs_store
+from blender_buddy.tui.screens.specs import plural_specs
 from blender_buddy.tui.widgets.section_card import SectionCard
 
 if TYPE_CHECKING:
@@ -187,7 +188,7 @@ class DashboardScreen(Screen):
         count = specs_store.count(cast("BlenderBuddyApp", self.app).specs_dir)
         if not count:
             return "No specs yet — open to create one."
-        return f"{count} spec" if count == 1 else f"{count} specs"
+        return plural_specs(count)
 
     def _update_specs_count(self) -> None:
         try:

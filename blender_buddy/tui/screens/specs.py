@@ -64,8 +64,9 @@ _FIX_STEPS = {
 _STEP_ORDER = (SpecState.UNREADABLE, SpecState.MISMATCHED)
 
 
-def _plural(count: int) -> str:
-    """`1 spec` / `2 specs`."""
+def plural_specs(count: int) -> str:
+    """`1 spec` / `2 specs`. Shared with the dashboard's Specs card, so the two
+    never drift into saying it differently."""
     return f"{count} spec" if count == 1 else f"{count} specs"
 
 
@@ -158,7 +159,7 @@ class SpecsScreen(Screen):
             return
 
         summary.display = True
-        summary.update(_plural(len(entries)))
+        summary.update(plural_specs(len(entries)))
         await panel.mount_all(
             SpecRow(
                 entry.path,
