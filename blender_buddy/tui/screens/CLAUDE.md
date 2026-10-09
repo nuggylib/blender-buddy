@@ -61,11 +61,24 @@ in the app (analogous to a route in a web app).
   deliberately inert seam: `on_model_row_selected` confirms the choice and says
   validation is not wired up yet, because there is no spec to validate against
   and no live Blender connection to validate through.
-- `specs.py` — `SpecsScreen` (`specs` in `SCREENS`), the Specs page. A
-  **placeholder**: a title plus a `#placeholder-note`, so `enter` on the
-  dashboard's Specs card is not a dead key. Spec creation, selection, and the
-  validation they drive land here. It is the one detail screen with **no
-  `#setup-prompt` branch** (see Conventions).
+- `specs.py` — `SpecsScreen` (`specs` in `SCREENS`), the Specs page: the
+  validation specs in `specs/`, one focusable `SpecRow` each. Follows
+  `models.py`'s page shape — a `VerticalScroll` of rows (`can_focus=False`, so
+  the rows are the only focus stops) plus a `FixPanel` **outside** the scroller.
+  The listing parses JSON per file, so it runs in
+  `@work(exclusive=True, group="specs-load")` via `asyncio.to_thread`, and every
+  post-load `query_one` is `NoMatches`-guarded. Two problem states contribute a
+  fix step — `UNREADABLE` (not valid JSON) and `MISMATCHED` (the file's
+  `model_type` disagrees with its filename; the filename wins). **Zero specs is
+  not a problem**: on a fresh install it is the normal state, so it renders a
+  plain `#specs-empty` note and contributes no step — the opposite call from the
+  Models screen's empty directory. `enter` on a row is a deliberately inert
+  seam, like `ModelsScreen`'s: it confirms the choice and says spec selection is
+  not wired up yet, because nothing persists a current spec.
+  It is the one detail screen with **no `#setup-prompt` branch** (see
+  Conventions), and the reason is now stronger rather than weaker: it reads
+  `self.app.specs_dir`, a path derived from the config *path* rather than its
+  contents, so the page lists and works identically in every config state.
 - `blender_detail.py`, `godot_detail.py` — the other two detail screens
   (`blender-detail`, `godot-detail` in `SCREENS`). Still **placeholders**: they
   render the configured value they own plus a `#placeholder-note`. They exist so
@@ -110,10 +123,15 @@ in the app (analogous to a route in a web app).
   That is what keeps every screen pushable by name from `SCREENS`, and why each
   must tolerate `self.app.settings is None` by rendering a `#setup-prompt`
   rather than raising — `--setup` cancellation ordering can reach them that way.
-  `specs.py` is the deliberate exception: it reads no settings at all, so it has
-  no `None` branch to write and renders identically in every config state. The
-  rule's *purpose* (never raise on that push) holds; its mechanism has nothing
-  to do.
+  `specs.py` is the deliberate exception: it reads no settings at all — only
+  `self.app.specs_dir`, a path derived from the config *path* — so it has no
+  `None` branch to write and lists and creates identically in every config
+  state. The rule's *purpose* (never raise on that push) holds; its mechanism
+  has nothing to do.
+- **Screens read `self.app.specs_dir`, never `config.paths` directly** — the
+  same rule that keeps them off `self.app._config_path`. It also means
+  `$BLENDER_BUDDY_CONFIG` needs no sibling `$BLENDER_BUDDY_SPECS`: point the
+  config somewhere and the specs follow.
 - **Bind one key per `Binding`, not comma-joined keys, whenever the footer
   matters.** Textual expands `Binding("down,j", …)` into a separate binding per
   key, each carrying the same `description` and `key_display` — so a shown pair

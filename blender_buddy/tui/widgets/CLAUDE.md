@@ -23,6 +23,14 @@ in the screen that owns it.
   directory) is escaped inside the widget: it is always a filename, and a model
   called `sedan[wip].blend` would otherwise be read as markup and render with a
   chunk missing.
+- `spec_row.py` — `SpecRow(Static, can_focus=True)`, one validation spec on the
+  Specs screen. `ModelRow`'s shape — focusable, `enter` posts
+  `SpecRow.Selected` — with two differences: it is labeled with the spec's
+  **`model_type`** (the filename stem, the spec's identity) rather than a path,
+  and it takes an optional `marker` rendered beside the name for the
+  unreadable/mismatched states. The message carries both the name and the path.
+  The name is escaped inside the widget for the same reason `ModelRow` escapes
+  its label: a spec called `mech[v2]` would otherwise be read as markup.
 - `fix_panel.py` — `FixPanel(Vertical)`, the "How to fix issues" block on a
   page whose content scrolls. Assign `steps` (rendered strings); an empty tuple
   hides it. Two constraints worth keeping:
