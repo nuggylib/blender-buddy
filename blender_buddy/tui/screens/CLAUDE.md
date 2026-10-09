@@ -8,8 +8,15 @@ in the app (analogous to a route in a web app).
   Renders four stacked sections — **Blender → Specs → Models → Godot**. The
   three configured anchors each carry a live existence/validity marker; **Specs
   is config-free** — it reads no settings and renders a muted `#specs-value`
-  line with no `✓`/`✗`, because there is no configured specs location to stat
-  yet. The Models section renders **one row per configured directory**, in
+  line with no `✓`/`✗`, because its location is a path convention
+  (`app.specs_dir`) rather than a configured anchor, so there is nothing to
+  validate. That line is a live count (`No specs yet` / `N specs`) from
+  `specs.store.count` — a single-directory glob with no parsing, so it runs
+  inline in `compose` like the other cards' `is_dir()`. It is **also refreshed
+  on `on_screen_resume`**, targeted at `#specs-value` alone: a spec created on
+  the Specs page lands while the dashboard is suspended, a pop does not
+  recompose, and a full `recompose` would re-trigger the Godot scan on every
+  `escape`. The Models section renders **one row per configured directory**, in
   stored order, each with its own independent marker (the schema and the wizard
   both enforce at least one, so there is no empty state). It reads
   `self.app.settings` (app-level state) and never touches TOML or the filesystem

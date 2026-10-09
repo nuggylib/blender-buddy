@@ -3,7 +3,8 @@
 Displays four sections — **Blender → Specs → Models → Godot**. The three
 configured anchors each carry a lightweight live existence/validity marker so
 the user can tell at a glance whether a saved path has since moved or been
-deleted; Specs is config-free and renders a muted placeholder line instead.
+deleted; Specs is config-free — its location is a path convention, not an
+anchor — so it renders a muted live spec count with no marker.
 
 **Navigation:** each section is a focusable `SectionCard`. `↑`/`↓` (and `j`/`k`)
 step through them, `enter` opens the focused section's detail screen. The cards
@@ -35,6 +36,7 @@ from textual.widgets import Footer, Header, Static
 
 from blender_buddy.blender import detect
 from blender_buddy.godot import discovery
+from blender_buddy.specs import store as specs_store
 from blender_buddy.tui.widgets.section_card import SectionCard
 
 if TYPE_CHECKING:
@@ -53,6 +55,10 @@ class DashboardScreen(Screen):
     "run setup" prompt in place of the config-derived sections — but the Specs
     card reads no settings, so it renders there too and the navigation keys act
     on exactly that one card.
+
+    The Specs count is refreshed on `ScreenResume` as well as on compose: a spec
+    created on the Specs page lands while this screen is suspended, and a pop
+    does not recompose.
 
     Future: live validation results driven by a Blender-polling worker, filling
     in the detail screens the sections already open.
@@ -95,6 +101,15 @@ class DashboardScreen(Screen):
         self._scan_godot()
         self._focus_section()
         self.watch(self.app, "settings", self._on_settings_changed, init=False)
+
+    def on_screen_resume(self) -> None:
+        """Refresh the spec count — a spec created on the Specs page lands while
+        this screen is suspended, and a pop does not recompose.
+
+        Targeted at `#specs-value` only: a full `recompose` would re-trigger the
+        Godot filesystem scan on every `escape`.
+        """
+        self._update_specs_count()
 
     async def _on_settings_changed(self, _settings: Settings | None) -> None:
         # `recompose` destroys every widget, the focused card included, so note
@@ -153,19 +168,32 @@ class DashboardScreen(Screen):
         )
 
     def _specs_section(self) -> SectionCard:
-        # No `settings` argument and no ✓/✗ marker: there is no configured specs
-        # location yet, so there is nothing to stat.
+        # No `settings` argument and no ✓/✗ marker: the specs location is a path
+        # convention, not a configured anchor, so there is nothing to validate.
         return SectionCard(
             Static("Specs", classes="section-title"),
-            Static(
-                "No spec selected — spec creation and selection are coming soon.",
-                id="specs-value",
-                classes="config-detail",
-            ),
+            Static(self._specs_count(), id="specs-value", classes="config-detail"),
             target="specs",
             id="section-specs",
             classes="section",
         )
+
+    def _specs_count(self) -> str:
+        """`No specs yet` / `N specs`.
+
+        A single-directory glob with no parsing — the same class of work as the
+        `is_dir()` the other cards do inline, so it needs no worker.
+        """
+        count = specs_store.count(cast("BlenderBuddyApp", self.app).specs_dir)
+        if not count:
+            return "No specs yet — open to create one."
+        return f"{count} spec" if count == 1 else f"{count} specs"
+
+    def _update_specs_count(self) -> None:
+        try:
+            self.query_one("#specs-value", Static).update(self._specs_count())
+        except NoMatches:
+            return  # recomposed away
 
     def _models_section(self, settings: Settings) -> SectionCard:
         # One row per configured location, in stored order (the order the user

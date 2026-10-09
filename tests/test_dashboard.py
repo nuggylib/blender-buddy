@@ -20,10 +20,12 @@ from blender_buddy.blender.detect import ProbeOutcome, ProbeResult
 from blender_buddy.config import store
 from blender_buddy.config.settings import Settings
 from blender_buddy.godot import discovery
+from blender_buddy.specs import store as specs_store
 from blender_buddy.tui.screens.blender_detail import BlenderDetailScreen
 from blender_buddy.tui.screens.dashboard import DashboardScreen
 from blender_buddy.tui.screens.godot_detail import GodotDetailScreen
 from blender_buddy.tui.screens.models import ModelsScreen
+from blender_buddy.tui.screens.new_spec_modal import NewSpecModal
 from blender_buddy.tui.screens.specs import SpecsScreen
 from blender_buddy.tui.widgets.section_card import SectionCard
 
@@ -132,7 +134,47 @@ async def test_dashboard_lists_every_models_directory(tmp_path, monkeypatch):
 
 async def test_dashboard_specs_card_carries_no_status_marker(tmp_path, monkeypatch):
     """Specs has no configured location to stat, so a ✓/✗ would be theater — it
-    gets a muted line saying the feature is not built yet."""
+    gets a muted live count instead."""
+    monkeypatch.setattr(discovery, "find_projects", lambda root, max_depth=4: [])
+    cfg = tmp_path / "config.toml"
+    models = tmp_path / "models"
+    models.mkdir()
+    godot = tmp_path / "godot"
+    godot.mkdir()
+    _seed(cfg, models, godot)
+    specs_store.create(tmp_path / "specs", "vehicle")
+
+    app = BlenderBuddyApp(config_path=cfg)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        card = app.screen.query_one("#section-specs", SectionCard)
+        assert _text(card.query_one(".section-title", Static)) == "Specs"
+        value = card.query_one("#specs-value", Static)
+        assert _text(value) == "1 spec"
+        assert "✓" not in _text(value)
+        assert "✗" not in _text(value)
+
+
+async def test_dashboard_specs_card_counts_the_specs(tmp_path, monkeypatch):
+    """A live count, so the card is not stale the moment a spec exists."""
+    monkeypatch.setattr(discovery, "find_projects", lambda root, max_depth=4: [])
+    cfg = tmp_path / "config.toml"
+    models = tmp_path / "models"
+    models.mkdir()
+    godot = tmp_path / "godot"
+    godot.mkdir()
+    _seed(cfg, models, godot)
+    for name in ("vehicle", "character", "prop"):
+        specs_store.create(tmp_path / "specs", name)
+
+    app = BlenderBuddyApp(config_path=cfg)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert _text(app.screen.query_one("#specs-value", Static)) == "3 specs"
+
+
+async def test_dashboard_specs_card_says_none_with_no_specs(tmp_path, monkeypatch):
+    """An absent specs directory counts as zero, and is not created by counting."""
     monkeypatch.setattr(discovery, "find_projects", lambda root, max_depth=4: [])
     cfg = tmp_path / "config.toml"
     models = tmp_path / "models"
@@ -144,12 +186,58 @@ async def test_dashboard_specs_card_carries_no_status_marker(tmp_path, monkeypat
     app = BlenderBuddyApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
-        card = app.screen.query_one("#section-specs", SectionCard)
-        assert _text(card.query_one(".section-title", Static)) == "Specs"
-        value = card.query_one("#specs-value", Static)
-        assert "coming soon" in _text(value)
-        assert "✓" not in _text(value)
-        assert "✗" not in _text(value)
+        assert "No specs yet" in _text(app.screen.query_one("#specs-value", Static))
+        assert not (tmp_path / "specs").exists()
+
+
+async def test_dashboard_specs_count_refreshes_on_screen_resume(tmp_path, monkeypatch):
+    """The regression this guards: creating a spec on the Specs page and pressing
+    `escape` left a stale count behind, because a pop does not recompose.
+
+    No unit test sees this path — it only exists between two screens.
+    """
+    monkeypatch.setattr(discovery, "find_projects", lambda root, max_depth=4: [])
+    cfg = tmp_path / "config.toml"
+    models = tmp_path / "models"
+    models.mkdir()
+    godot = tmp_path / "godot"
+    godot.mkdir()
+    _seed(cfg, models, godot)
+
+    app = BlenderBuddyApp(config_path=cfg)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert "No specs yet" in _text(app.screen.query_one("#specs-value", Static))
+
+        await pilot.press("down", "enter")  # Blender → Specs → open
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecsScreen))
+
+        await pilot.press("n")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, NewSpecModal))
+        app.screen.query_one("#spec-name", Input).value = "vehicle"
+        await pilot.press("enter")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecsScreen))
+
+        await pilot.press("escape")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, DashboardScreen))
+        assert await _wait_for(
+            pilot,
+            lambda: _text(app.screen.query_one("#specs-value", Static)) == "1 spec",
+        )
+
+
+async def test_dashboard_specs_count_renders_without_a_valid_config(tmp_path):
+    """The Specs card is the only one shown in that state, and its count comes
+    off the config *path*, so it still works."""
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("this is not valid toml {{{")
+    specs_store.create(tmp_path / "specs", "vehicle")
+
+    app = BlenderBuddyApp(config_path=cfg)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.settings is None
+        assert _text(app.screen.query_one("#specs-value", Static)) == "1 spec"
 
 
 async def test_dashboard_shows_setup_prompt_when_corrupt(tmp_path):
