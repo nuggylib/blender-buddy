@@ -115,6 +115,10 @@ in the app (analogous to a route in a web app).
   keeps the modal up with a message in `#spec-status` and the Input's text
   intact, and writes nothing. The write itself is one small file done inline,
   like `app._save`: no worker needed.
+  It composes its **own `Footer`**, which a `ModalScreen` needs and a plain
+  pushed screen does not: a modal is transparent, so the page underneath keeps
+  painting *its* bindings — the Specs page's `n New spec` and `q Quit`, neither
+  of which does anything while the modal is up.
 - `setup_wizard.py` — `SetupWizard(Screen[Settings | None])`, the first-time
   setup flow. A 3-step Back/Next `ContentSwitcher` (Blender executable → models
   directories → Godot root) that returns a `Settings` via `dismiss()`, or `None`

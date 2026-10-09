@@ -22,7 +22,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Static
+from textual.widgets import Button, Footer, Input, Static
 
 from blender_buddy.config import paths
 from blender_buddy.specs import naming, store
@@ -57,6 +57,8 @@ class NewSpecModal(ModalScreen[Path | None]):
         align: center middle;
     }
     NewSpecModal > Vertical {
+        /* `align: center middle` on the screen centers this panel; the Footer
+           docks below it on its own. */
         width: 80%;
         max-width: 70;
         height: auto;
@@ -92,11 +94,17 @@ class NewSpecModal(ModalScreen[Path | None]):
                 classes="config-detail",
             )
             yield Input(placeholder="vehicle", id="spec-name")
+            # Both start empty but hold their row: the buttons would otherwise
+            # jump down the moment a preview or an error appears.
             yield Static("", id="spec-preview", classes="config-detail")
             yield Static("", id="spec-status", classes="config-detail")
             with Horizontal(id="spec-buttons"):
                 yield Button("Cancel", id="cancel-spec")
                 yield Button("Create", id="create-spec", variant="primary")
+        # A `ModalScreen` is transparent, so without a Footer of its own the
+        # page underneath keeps painting *its* bindings — advertising `n New
+        # spec` and `q Quit`, neither of which does anything up here.
+        yield Footer()
 
     def on_mount(self) -> None:
         self.query_one("#spec-name", Input).focus()

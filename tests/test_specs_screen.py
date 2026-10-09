@@ -284,6 +284,26 @@ async def test_specs_screen_footer_advertises_the_new_spec_key(tmp_path, monkeyp
         assert {"down", "j", "up", "k"} <= set(app.screen.active_bindings)
 
 
+async def test_new_spec_modal_footer_replaces_the_pages(tmp_path, monkeypatch):
+    """A `ModalScreen` is transparent, so without a Footer of its own the page
+    underneath keeps painting *its* bindings — advertising `n New spec` and
+    `q Quit` while neither does anything. Asserted against the composited
+    screen, because that is where the wrong footer was actually visible.
+    """
+    app = _app(tmp_path, monkeypatch, specs=("vehicle",))
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _open_specs(pilot, app)
+        await _open_modal(pilot, app)
+
+        drawn = "\n".join(
+            "".join(segment.text for segment in strip._segments)
+            for strip in app.screen._compositor.render_strips()
+        )
+        assert "Cancel" in drawn
+        assert "New spec" not in drawn.splitlines()[-1]
+        assert "Quit" not in drawn.splitlines()[-1]
+
+
 async def test_new_spec_creates_the_file_and_focuses_its_row(tmp_path, monkeypatch):
     """The whole flow: `n` → type → enter → file on disk, modal closed, the new
     row present **and focused** rather than focus snapping back to row one."""
