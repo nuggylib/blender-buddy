@@ -93,7 +93,7 @@ class NewSpecModal(ModalScreen[Path | None]):
                 "`model_type`.",
                 classes="config-detail",
             )
-            yield Input(placeholder="vehicle", id="spec-name")
+            yield Input(id="spec-name")
             # Both start empty but hold their row: the buttons would otherwise
             # jump down the moment a preview or an error appears.
             yield Static("", id="spec-preview", classes="config-detail")
