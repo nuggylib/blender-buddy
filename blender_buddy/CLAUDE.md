@@ -63,6 +63,9 @@ normal checkout. Do not commit or hand-edit it.
 - `models/` — source-model discovery: a bounded scan for `.blend` files under a
   configured models directory (`discovery.find_blend_files`). Locates models
   only; reading their contents belongs to `blender/`. No Textual, no UI.
+- `specs/` — validation specs: the document vocabulary (`schema.py`), the
+  model-type name rules (`naming.py`), and the JSON files on disk. The spec
+  files themselves are the list of supported model types. No Textual, no UI.
 
 ## Conventions
 - Group new code by category into subpackages here rather than adding loose
