@@ -30,29 +30,23 @@ class BlenderDetailScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header()
         settings = cast("BlenderBuddyApp", self.app).settings
-        if settings is None:
-            yield Static(
-                "Setup incomplete or unreadable — press 's' to run setup.",
-                id="setup-prompt",
-            )
-        else:
-            yield Vertical(
-                Static("Blender", classes="section-title"),
-                Static(
-                    escape(settings.blender_executable),
-                    id="blender-value",
-                    classes="config-value",
-                ),
-                Static(
-                    f"Recorded version: "
-                    f"{escape(settings.blender_version or 'unknown version')}",
-                    classes="config-detail",
-                ),
-                Static(
-                    "Live version probe and scene-connection details are coming soon.",
-                    id="placeholder-note",
-                    classes="config-detail",
-                ),
-                id="detail-panel",
-            )
+        yield Vertical(
+            Static("Blender", classes="section-title"),
+            Static(
+                escape(settings.blender_executable),
+                id="blender-value",
+                classes="config-value",
+            ),
+            Static(
+                f"Recorded version: "
+                f"{escape(settings.blender_version or 'unknown version')}",
+                classes="config-detail",
+            ),
+            Static(
+                "Live version probe and scene-connection details are coming soon.",
+                id="placeholder-note",
+                classes="config-detail",
+            ),
+            id="detail-panel",
+        )
         yield Footer()

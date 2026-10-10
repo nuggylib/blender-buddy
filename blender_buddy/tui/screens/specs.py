@@ -11,11 +11,6 @@ one `await` away rather than a reimplementation.
 `enter` on a row opens `SpecDetailScreen` for that spec — pushed as an instance,
 because the screen is per spec and there is no app-level "current spec" to read.
 
-Unlike its sibling detail screens it has **no `#setup-prompt` branch**, and the
-reason is now stronger rather than weaker: it reads `self.app.specs_dir`, a path
-derived from the config *path* rather than its contents, so the page lists and
-works identically with an absent or corrupt config.
-
 The directory listing parses JSON per file, so it runs in a `@work` worker via
 `asyncio.to_thread` — never on the event loop.
 """

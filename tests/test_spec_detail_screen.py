@@ -203,7 +203,7 @@ async def test_spec_detail_quit_still_works(tmp_path, monkeypatch):
 
 
 async def test_spec_detail_opens_without_a_valid_config(tmp_path):
-    """It reads no settings at all, so there is no `#setup-prompt` to render."""
+    """It reads no settings at all, so it opens with `settings is None`."""
     cfg = tmp_path / "config.toml"
     cfg.write_text("this is not valid toml {{{")
     specs_store.create(tmp_path / "specs", "vehicle")
@@ -220,7 +220,6 @@ async def test_spec_detail_opens_without_a_valid_config(tmp_path):
 
         assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))
         assert "vehicle" in _title(app)
-        assert not app.screen.query("#setup-prompt")
 
 
 async def test_spec_detail_writes_nothing_to_disk(tmp_path, monkeypatch):

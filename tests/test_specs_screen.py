@@ -524,7 +524,7 @@ async def test_new_spec_double_n_does_not_stack_two_modals(tmp_path, monkeypatch
 
 async def test_new_spec_works_without_a_valid_config(tmp_path):
     """`specs_dir` comes from the config *path*, so the create flow works with
-    `settings is None` — the strongest form of the no-`#setup-prompt` rule."""
+    `settings is None`."""
     cfg = tmp_path / "config.toml"
     cfg.write_text("this is not valid toml {{{")
 
@@ -543,7 +543,6 @@ async def test_new_spec_works_without_a_valid_config(tmp_path):
         assert (tmp_path / "specs" / "vehicle.json").is_file()
         screen = app.screen
         assert await _wait_for(pilot, lambda: _row_labels(screen) == ["▸ vehicle"])
-        assert not screen.query("#setup-prompt")
 
 
 async def test_specs_screen_escape_returns_to_the_dashboard(tmp_path, monkeypatch):
@@ -558,7 +557,7 @@ async def test_specs_screen_escape_returns_to_the_dashboard(tmp_path, monkeypatc
 
 async def test_specs_screen_lists_without_a_valid_config(tmp_path):
     """It reads a path derived from the config *path*, not its contents — so it
-    has no `#setup-prompt` branch and lists normally with `settings is None`."""
+    lists normally with `settings is None`."""
     cfg = tmp_path / "config.toml"
     cfg.write_text("this is not valid toml {{{")
     specs_store.create(tmp_path / "specs", "vehicle")
@@ -571,7 +570,6 @@ async def test_specs_screen_lists_without_a_valid_config(tmp_path):
         await pilot.press("enter")  # Specs is the only card there is
         assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecsScreen))
         screen = app.screen
-        assert not screen.query("#setup-prompt")
         assert await _wait_for(pilot, lambda: _row_labels(screen) == ["▸ vehicle"])
 
 
