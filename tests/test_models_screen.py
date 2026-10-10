@@ -340,7 +340,7 @@ async def test_models_screen_fix_block_stays_visible_under_a_long_list(
         await pilot.pause()
         text = drawn()
         assert "How to fix issues" in text
-        assert "re-point the directory" in text
+        assert "re-point it from the dashboard's setup" in text
         assert "m39.blend" in text  # the list did scroll
         assert "Quit" in text  # and the key footer is still there too
 

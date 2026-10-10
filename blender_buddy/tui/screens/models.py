@@ -55,7 +55,7 @@ _MARKERS = {
 # shows nothing.
 _FIX_STEPS = {
     _State.MISSING: (
-        "[b]✗ not found[/] — press `s` to re-point the directory, or create it on disk."
+        "[b]✗ not found[/] — re-point it from the dashboard's setup, or create it on disk."
     ),
     _State.UNAVAILABLE: (
         "[b]⚠ models unavailable[/] — the directory exists but can't be read; "
