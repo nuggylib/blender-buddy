@@ -87,10 +87,9 @@ in the app (analogous to a route in a web app).
   non-`None` return, notifies, `recompose`s, reloads, and hands focus to the
   **new** row rather than row one (`_focus_after_load`). `exclusive` is what
   stops a fast double `n` stacking two modals.
-  It is the one detail screen with **no `#setup-prompt` branch** (see
-  Conventions), and the reason is now stronger rather than weaker: it reads
-  `self.app.specs_dir`, a path derived from the config *path* rather than its
-  contents, so the page lists and works identically in every config state.
+  It reads `self.app.specs_dir`, a path derived from the config *path* rather
+  than its contents, so the page lists and works identically in every config
+  state.
 - `spec_detail.py` — `SpecDetailScreen`, the per-spec detail view opened by
   `enter` on a `SpecRow`. A **stub**, like `blender_detail.py`: a `#spec-title`
   naming the spec and a `#placeholder-note`, reusing their ids and classes so it
@@ -98,10 +97,9 @@ in the app (analogous to a route in a web app).
   the spec's identity — as a **constructor argument** and is **not** in
   `SCREENS` (see Conventions). The stem is the identity, so there is nothing to
   read from the file to title the page, which is why the screen touches no
-  filesystem at all; it reads no settings either, so it has no `#setup-prompt`
-  branch. It takes the name alone, not the `Path` — with no filename line and no
-  file read, a path would be an argument nothing uses, and `SpecRow.Selected`
-  carries both when something needs it. Nothing on the page is focusable.
+  filesystem at all. It takes the name alone, not the `Path` — with no filename
+  line and no file read, a path would be an argument nothing uses, and
+  `SpecRow.Selected` carries both when something needs it. Nothing on the page is focusable.
 - `blender_detail.py`, `godot_detail.py` — the other two detail screens
   (`blender-detail`, `godot-detail` in `SCREENS`). Still **placeholders**: they
   render the configured value they own plus a `#placeholder-note`. They exist so
@@ -167,20 +165,19 @@ in the app (analogous to a route in a web app).
   `@work(exclusive=True, group=…)` so a rescan cancels its predecessor rather
   than racing it.
 - **A detail screen reads app-level state, it does not take constructor args.**
-  That is what keeps every screen pushable by name from `SCREENS`, and why each
-  must tolerate `self.app.settings is None` by rendering a `#setup-prompt`
-  rather than raising — `--setup` cancellation ordering can reach them that way.
-  `specs.py` is the deliberate exception: it reads no settings at all — only
-  `self.app.specs_dir`, a path derived from the config *path* — so it has no
-  `None` branch to write and lists and creates identically in every config
-  state. The rule's *purpose* (never raise on that push) holds; its mechanism
-  has nothing to do.
-  `spec_detail.py` is the other named exemption, and it takes the opposite route:
+  That is what keeps every screen pushable by name from `SCREENS`. Detail
+  screens assume `self.app.settings` is valid: the dashboard only links to the
+  config-derived pages when it is, so they carry no `None` fallback. `specs.py`
+  reads no settings at all — only `self.app.specs_dir` — so it works in every
+  config state.
+  `spec_detail.py` is the named exemption:
   it is *per spec*, with no app-level "current spec" to read, so it takes the
   spec as a constructor argument and is **not** registered in `SCREENS` — the
   `SetupWizard` / `NewSpecModal` shape, minus the return value. Adding a
   `current_spec` to app state would be persisting a selected spec, which nothing
   asks for. The rule's purpose holds because nothing in `SCREENS` names it.
+- **Setup (`s` → `app.open_setup`) is bound on the dashboard only.** No other
+  screen offers it, nor tells the user to press `s`.
 - **Screens read `self.app.specs_dir`, never `config.paths` directly** — the
   same rule that keeps them off `self.app._config_path`. It also means
   `$BLENDER_BUDDY_CONFIG` needs no sibling `$BLENDER_BUDDY_SPECS`: point the
