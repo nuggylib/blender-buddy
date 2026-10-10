@@ -19,6 +19,7 @@ from blender_buddy.specs import schema
 from blender_buddy.specs import store as specs_store
 from blender_buddy.tui.screens.dashboard import DashboardScreen
 from blender_buddy.tui.screens.new_spec_modal import NewSpecModal
+from blender_buddy.tui.screens.spec_detail import SpecDetailScreen
 from blender_buddy.tui.screens.specs import SpecsScreen
 from blender_buddy.tui.widgets.spec_row import SpecRow
 
@@ -230,8 +231,10 @@ async def test_specs_screen_focus_chain_is_exactly_the_rows(tmp_path, monkeypatc
         assert screen.focused.model_type == "vehicle"
 
 
-async def test_specs_screen_enter_on_a_row_persists_nothing(tmp_path, monkeypatch):
-    """A deliberately inert seam: it confirms the choice and says so."""
+async def test_specs_screen_enter_on_a_row_opens_its_detail_screen(
+    tmp_path, monkeypatch
+):
+    """The seam pushes the spec's detail screen and still persists nothing."""
     app = _app(tmp_path, monkeypatch, specs=("vehicle",))
     async with app.run_test() as pilot:
         await _open_specs(pilot, app)
@@ -240,11 +243,9 @@ async def test_specs_screen_enter_on_a_row_persists_nothing(tmp_path, monkeypatc
 
         before = config_store.load(app._config_path)
         await pilot.press("enter")
-        await pilot.pause()
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))
 
-        notices = [str(notification.message) for notification in app._notifications]
-        assert any("vehicle" in notice for notice in notices)
-        assert any("not wired up yet" in notice for notice in notices)
+        assert app.screen.model_type == "vehicle"
         assert config_store.load(app._config_path) == before
 
 

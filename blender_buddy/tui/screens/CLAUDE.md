@@ -79,9 +79,9 @@ in the app (analogous to a route in a web app).
   `model_type` disagrees with its filename; the filename wins). **Zero specs is
   not a problem**: on a fresh install it is the normal state, so it renders a
   plain `#specs-empty` note and contributes no step — the opposite call from the
-  Models screen's empty directory. `enter` on a row is a deliberately inert
-  seam, like `ModelsScreen`'s: it confirms the choice and says spec selection is
-  not wired up yet, because nothing persists a current spec.
+  Models screen's empty directory. `enter` on a row opens `spec_detail.py` for
+  that spec, pushed as an **instance** (the screen is per spec), so no `enter`
+  on this page is a dead key.
   **`n` creates:** `action_new_spec` runs a `@work(exclusive=True,
   group="new-spec")` worker that `push_screen_wait`s a `NewSpecModal` and, on a
   non-`None` return, notifies, `recompose`s, reloads, and hands focus to the
@@ -91,6 +91,17 @@ in the app (analogous to a route in a web app).
   Conventions), and the reason is now stronger rather than weaker: it reads
   `self.app.specs_dir`, a path derived from the config *path* rather than its
   contents, so the page lists and works identically in every config state.
+- `spec_detail.py` — `SpecDetailScreen`, the per-spec detail view opened by
+  `enter` on a `SpecRow`. A **stub**, like `blender_detail.py`: a `#spec-title`
+  naming the spec and a `#placeholder-note`, reusing their ids and classes so it
+  needs no CSS of its own. It takes the spec's `model_type` — the filename stem,
+  the spec's identity — as a **constructor argument** and is **not** in
+  `SCREENS` (see Conventions). The stem is the identity, so there is nothing to
+  read from the file to title the page, which is why the screen touches no
+  filesystem at all; it reads no settings either, so it has no `#setup-prompt`
+  branch. It takes the name alone, not the `Path` — with no filename line and no
+  file read, a path would be an argument nothing uses, and `SpecRow.Selected`
+  carries both when something needs it. Nothing on the page is focusable.
 - `blender_detail.py`, `godot_detail.py` — the other two detail screens
   (`blender-detail`, `godot-detail` in `SCREENS`). Still **placeholders**: they
   render the configured value they own plus a `#placeholder-note`. They exist so
@@ -164,6 +175,12 @@ in the app (analogous to a route in a web app).
   `None` branch to write and lists and creates identically in every config
   state. The rule's *purpose* (never raise on that push) holds; its mechanism
   has nothing to do.
+  `spec_detail.py` is the other named exemption, and it takes the opposite route:
+  it is *per spec*, with no app-level "current spec" to read, so it takes the
+  spec as a constructor argument and is **not** registered in `SCREENS` — the
+  `SetupWizard` / `NewSpecModal` shape, minus the return value. Adding a
+  `current_spec` to app state would be persisting a selected spec, which nothing
+  asks for. The rule's purpose holds because nothing in `SCREENS` names it.
 - **Screens read `self.app.specs_dir`, never `config.paths` directly** — the
   same rule that keeps them off `self.app._config_path`. It also means
   `$BLENDER_BUDDY_CONFIG` needs no sibling `$BLENDER_BUDDY_SPECS`: point the

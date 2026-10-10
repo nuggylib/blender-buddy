@@ -8,6 +8,9 @@ so it gets a plain note and contributes no fix step.
 arguments and returns a `Path`, so a second entry point to the create flow is
 one `await` away rather than a reimplementation.
 
+`enter` on a row opens `SpecDetailScreen` for that spec — pushed as an instance,
+because the screen is per spec and there is no app-level "current spec" to read.
+
 Unlike its sibling detail screens it has **no `#setup-prompt` branch**, and the
 reason is now stronger rather than weaker: it reads `self.app.specs_dir`, a path
 derived from the config *path* rather than its contents, so the page lists and
@@ -34,6 +37,7 @@ from textual.widgets import Footer, Header, Static
 from blender_buddy.specs import store
 from blender_buddy.specs.store import SpecState
 from blender_buddy.tui.screens.new_spec_modal import NewSpecModal
+from blender_buddy.tui.screens.spec_detail import SpecDetailScreen
 from blender_buddy.tui.widgets.fix_panel import FixPanel
 from blender_buddy.tui.widgets.spec_row import SpecRow
 
@@ -77,9 +81,8 @@ class SpecsScreen(Screen):
     and `j`/`k` step through them, `enter` selects one. The rows are the only
     focus stops — the title and summary lines are plain `Static`s.
 
-    Selecting a spec currently does nothing but confirm the choice: nothing
-    persists a "current spec" yet. `on_spec_row_selected` is the seam that work
-    replaces.
+    Selecting a spec pushes `SpecDetailScreen` for it — a stub today, so nothing
+    persists a "current spec" and nothing is read from the file.
     """
 
     BINDINGS = [
@@ -198,7 +201,6 @@ class SpecsScreen(Screen):
     # -- selection ---------------------------------------------------------
 
     def on_spec_row_selected(self, message: SpecRow.Selected) -> None:
-        """Confirm the choice; nothing persists a current spec yet."""
-        self.notify(
-            f"{message.model_type} selected — spec selection is not wired up yet."
-        )
+        """Open the spec's detail view. The row names the spec, which is why the
+        screen can be pushed as an instance."""
+        self.app.push_screen(SpecDetailScreen(message.model_type))
