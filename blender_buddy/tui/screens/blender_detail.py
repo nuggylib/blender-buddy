@@ -25,7 +25,6 @@ class BlenderDetailScreen(Screen):
 
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
-        ("s", "app.open_setup", "Setup"),
     ]
 
     def compose(self) -> ComposeResult:

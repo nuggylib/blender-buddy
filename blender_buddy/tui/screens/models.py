@@ -92,7 +92,6 @@ class ModelsScreen(Screen):
 
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
-        ("s", "app.open_setup", "Setup"),
         # One binding per key: Textual expands a comma-joined pair into one
         # binding each, drawing the footer entry twice.
         Binding("down", "app.focus_next", "Move", key_display="↑↓"),

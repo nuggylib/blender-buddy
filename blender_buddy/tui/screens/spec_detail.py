@@ -29,7 +29,6 @@ class SpecDetailScreen(Screen):
 
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
-        ("s", "app.open_setup", "Setup"),
     ]
 
     def __init__(self, model_type: str) -> None:
