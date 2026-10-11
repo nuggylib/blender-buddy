@@ -103,7 +103,7 @@ class ArmatureFormScreen(Screen):
             yield Static("Bone name", classes="config-detail")
             yield Input(id="bone-name")
             yield Vertical(id="bone-question")
-            yield Static("", id="bone-status", classes="config-detail")
+            yield Static("", id="bone-status", classes="config-detail", markup=False)
         yield Static("Required bones", id="bone-list-title", classes="section-title")
         yield VerticalScroll(id="bone-list", can_focus=False)
         yield Footer()
@@ -144,7 +144,7 @@ class ArmatureFormScreen(Screen):
         await self._clear_question()
         name = event.value.strip()
         if error := bones.validate_name(name):
-            self._status(escape(error))
+            self._status(error)
             return
         try:
             document = store.read(self.path)
@@ -153,7 +153,7 @@ class ArmatureFormScreen(Screen):
             return
         required = store.required_bones(document)
         if name in required:
-            self._status(f"'{escape(name)}' is already required.")
+            self._status(f"'{name}' is already required.")
             return
         self._bone = _Bone(name, dict(store.bone_name_inverses(document)), required)
         if not await self._advance():
@@ -167,7 +167,7 @@ class ArmatureFormScreen(Screen):
             return
         segment = bone.asking
         if error := bones.validate_inverse(segment, event.value, bone.known()):
-            self._status(escape(error))
+            self._status(error)
             return
         bone.history.append((segment, bones.normalize_inverse(event.value)))
         if not await self._advance():
@@ -195,7 +195,7 @@ class ArmatureFormScreen(Screen):
         too_long = next((name for name in names if bones.validate_name(name)), None)
         if too_long is not None:
             self._status(
-                f"'{escape(too_long)}' would exceed {bones.MAX_BYTES} bytes — "
+                f"'{too_long}' would exceed {bones.MAX_BYTES} bytes — "
                 "use a shorter inverse."
             )
             return False
@@ -241,9 +241,10 @@ class ArmatureFormScreen(Screen):
         inverse = Input(answer, id="bone-inverse")
         await self.query_one("#bone-question", Vertical).mount(
             Static(
-                f"Inverse of `{escape(segment)}` — leave blank if it has none",
+                f"Inverse of `{segment}` — leave blank if it has none",
                 id="bone-inverse-label",
                 classes="config-detail",
+                markup=False,
             ),
             inverse,
         )
@@ -269,9 +270,9 @@ class ArmatureFormScreen(Screen):
         except (OSError, ValueError) as error:
             self._status(f"Could not read the spec: {_reason(error)}")
             return
-        rows = [Static(escape(name), classes="bone-row") for name in required] or [
-            Static(_EMPTY, id="bone-list-empty", classes="config-detail")
-        ]
+        rows = [
+            Static(name, classes="bone-row", markup=False) for name in required
+        ] or [Static(_EMPTY, id="bone-list-empty", classes="config-detail")]
         bone_list = self.query_one("#bone-list", VerticalScroll)
         await bone_list.remove_children()
         await bone_list.mount_all(rows)
@@ -281,4 +282,4 @@ class ArmatureFormScreen(Screen):
 
 
 def _reason(error: Exception) -> str:
-    return escape(str(getattr(error, "strerror", None) or error))
+    return str(getattr(error, "strerror", None) or error)
