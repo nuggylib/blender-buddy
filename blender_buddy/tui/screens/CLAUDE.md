@@ -92,14 +92,17 @@ in the app (analogous to a route in a web app).
   state.
 - `spec_detail.py` — `SpecDetailScreen(model_type, path)`, the per-spec detail
   view opened by `enter` on a `SpecRow`. Not in `SCREENS` (see Conventions).
-  Lists `armature.required_bones` (one non-focusable `Static` each, or an empty
-  line). The spec is one small file, read inline via `specs.store.read` and
-  **re-read on `on_screen_resume`** so it reflects what a form wrote. A spec
-  `read` rejects shows `#armature-unreadable` and `check_action` disables `a`.
-  `a` (**Add data**) runs a `@work(exclusive=True, group="add-data")` worker:
+  Summarizes each root field in a non-focusable `FieldSummary` box — Armature
+  shows `Name` (`object_name`, or `not set`) and `Bones` (a count). It never
+  lists bones; the full list lives on `armature_form.py`. The spec is one small
+  file, read inline via `specs.store.read` and **re-read on
+  `on_screen_resume`** so it reflects what a form wrote. A spec `read` rejects
+  hides every summary, shows the page-level `#spec-unreadable`, and
+  `check_action` disables `a`. `a` (**Add data**) runs a
+  `@work(exclusive=True, group="add-data")` worker:
   `push_screen_wait(AddDataModal())`, then `"armature"` →
   `ArmatureFormScreen(path)`. A new root field is one `FIELDS` entry in the
-  picker plus one route here.
+  picker, one route here, and one `FieldSummary` with its rows.
 - `add_data_modal.py` — `AddDataModal(ModalScreen[str | None])`: an
   `OptionList` of spec root fields from `FIELDS` (keys are `schema.skeleton`
   root keys; only Armature today). Returns the key, or `None` on `escape`.

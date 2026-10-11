@@ -1,9 +1,11 @@
 """The spec detail screen — one spec's contents, and the way to add to them.
 
-Lists `armature.required_bones`. `a` (**Add data**) opens `AddDataModal`, a
-picker of the spec's root fields, and routes the choice to that field's form.
-The spec is one small file, read inline (like `NewSpecModal`'s inline write)
-and re-read on every resume so it reflects whatever a form wrote.
+Summarizes each root field in a `FieldSummary` (Armature: name and bone count;
+the full bone list lives on the armature form). `a` (**Add data**) opens
+`AddDataModal`, a picker of the spec's root fields, and routes the choice to
+that field's form. The spec is one small file, read inline (like
+`NewSpecModal`'s inline write) and re-read on every resume so it reflects
+whatever a form wrote.
 """
 
 from __future__ import annotations
@@ -14,16 +16,17 @@ from rich.markup import escape
 from textual import work
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
 
 from blender_buddy.specs import store
 from blender_buddy.tui.screens.add_data_modal import AddDataModal
 from blender_buddy.tui.screens.armature_form import ArmatureFormScreen
+from blender_buddy.tui.widgets.field_summary import FieldSummary
 
-_EMPTY = "No required bones yet — press `a` to add data."
 _UNREADABLE = "This spec can't be read — see the fix steps on the Specs page."
+_NOT_SET = "not set"
 
 
 class SpecDetailScreen(Screen):
@@ -46,6 +49,8 @@ class SpecDetailScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Header()
+        unreadable = Static(_UNREADABLE, id="spec-unreadable", classes="config-detail")
+        unreadable.display = False
         yield VerticalScroll(
             # Escaped for the same reason `SpecRow` escapes it: a spec called
             # `mech[v2]` would otherwise be read as markup.
@@ -54,15 +59,15 @@ class SpecDetailScreen(Screen):
                 id="spec-title",
                 classes="section-title",
             ),
-            Static("Armature", id="armature-title", classes="section-title"),
-            Vertical(id="armature-bones"),
+            FieldSummary("Armature", id="armature-summary", classes="field-summary"),
+            unreadable,
             id="detail-panel",
             can_focus=False,
         )
         yield Footer()
 
-    async def on_screen_resume(self) -> None:
-        await self._show_armature()
+    def on_screen_resume(self) -> None:
+        self._show_fields()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         """`a` is disabled while the spec can't be read."""
@@ -84,20 +89,18 @@ class SpecDetailScreen(Screen):
 
     # -- sections ----------------------------------------------------------
 
-    async def _show_armature(self) -> None:
+    def _show_fields(self) -> None:
         try:
-            bones = store.required_bones(store.read(self.path))
+            document = store.read(self.path)
         except (OSError, ValueError):
             self._readable = False
-            rows = [
-                Static(_UNREADABLE, id="armature-unreadable", classes="config-detail")
-            ]
         else:
             self._readable = True
-            rows = [
-                Static(bone, classes="bone-row", markup=False) for bone in bones
-            ] or [Static(_EMPTY, id="armature-empty", classes="config-detail")]
+            self.query_one("#armature-summary", FieldSummary).rows = (
+                ("Name", store.armature_name(document) or _NOT_SET),
+                ("Bones", str(len(store.required_bones(document)))),
+            )
+        for summary in self.query(FieldSummary):
+            summary.display = self._readable
+        self.query_one("#spec-unreadable", Static).display = not self._readable
         self.refresh_bindings()
-        container = self.query_one("#armature-bones", Vertical)
-        await container.remove_children()
-        await container.mount_all(rows)
