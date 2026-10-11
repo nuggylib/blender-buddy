@@ -94,6 +94,17 @@ async def test_form_opens_focused_on_the_name_field(tmp_path, monkeypatch):
         assert app.screen.query_one("#bone-list-empty")
 
 
+async def test_form_lists_every_bone_already_in_the_spec(tmp_path, monkeypatch):
+    """The full list lives here — the detail page only shows a count."""
+    path = _spec(tmp_path)
+    bones = [f"bone{i}" for i in range(40)]
+    specs_store.update_armature(path, add_bones=bones)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _open(pilot, app, path)
+        assert await _wait_for(pilot, lambda: _listed(app) == bones)
+
+
 async def test_plain_name_is_written_listed_and_cleared(tmp_path, monkeypatch):
     path = _spec(tmp_path)
     app = _app(tmp_path, monkeypatch)
