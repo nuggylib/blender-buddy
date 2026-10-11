@@ -12,6 +12,7 @@ exercise the wiring (worker → count) and the live existence markers.
 
 from pathlib import Path
 
+import pytest
 from textual.widgets import Button, ContentSwitcher, Input, ListView, Static
 
 from blender_buddy.app import BlenderBuddyApp
@@ -26,6 +27,7 @@ from blender_buddy.tui.screens.dashboard import DashboardScreen
 from blender_buddy.tui.screens.godot_detail import GodotDetailScreen
 from blender_buddy.tui.screens.models import ModelsScreen
 from blender_buddy.tui.screens.new_spec_modal import NewSpecModal
+from blender_buddy.tui.screens.spec_detail import SpecDetailScreen
 from blender_buddy.tui.screens.specs import SpecsScreen
 from blender_buddy.tui.widgets.section_card import SectionCard
 
@@ -440,6 +442,27 @@ async def test_dashboard_enter_opens_each_sections_detail_screen(tmp_path, monke
             )
             assert app.screen.focused.id == section_id
             await pilot.press("down")
+
+
+@pytest.mark.parametrize(
+    "screen",
+    ["blender-detail", "specs", "models", "godot-detail", "spec-detail"],
+)
+async def test_setup_key_is_unbound_off_the_dashboard(tmp_path, monkeypatch, screen):
+    """Setup is reachable from the dashboard only; `s` does nothing elsewhere."""
+    app = _seeded_app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.push_screen(
+            SpecDetailScreen("vehicle") if screen == "spec-detail" else screen
+        )
+        await pilot.pause()
+        pushed = app.screen
+        assert "s" not in pushed.active_bindings
+
+        await pilot.press("s")
+        await pilot.pause()
+        assert app.screen is pushed
 
 
 async def test_dashboard_restores_focus_after_settings_change(tmp_path, monkeypatch):

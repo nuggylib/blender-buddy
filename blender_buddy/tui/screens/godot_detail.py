@@ -25,30 +25,23 @@ class GodotDetailScreen(Screen):
 
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
-        ("s", "app.open_setup", "Setup"),
     ]
 
     def compose(self) -> ComposeResult:
         yield Header()
         settings = cast("BlenderBuddyApp", self.app).settings
-        if settings is None:
-            yield Static(
-                "Setup incomplete or unreadable — press 's' to run setup.",
-                id="setup-prompt",
-            )
-        else:
-            yield Vertical(
-                Static("Godot", classes="section-title"),
-                Static(
-                    escape(settings.godot_projects_root),
-                    id="godot-value",
-                    classes="config-value",
-                ),
-                Static(
-                    "The per-project listing and export targets are coming soon.",
-                    id="placeholder-note",
-                    classes="config-detail",
-                ),
-                id="detail-panel",
-            )
+        yield Vertical(
+            Static("Godot", classes="section-title"),
+            Static(
+                escape(settings.godot_projects_root),
+                id="godot-value",
+                classes="config-value",
+            ),
+            Static(
+                "The per-project listing and export targets are coming soon.",
+                id="placeholder-note",
+                classes="config-detail",
+            ),
+            id="detail-panel",
+        )
         yield Footer()

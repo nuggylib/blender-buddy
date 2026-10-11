@@ -55,7 +55,7 @@ _MARKERS = {
 # shows nothing.
 _FIX_STEPS = {
     _State.MISSING: (
-        "[b]✗ not found[/] — press `s` to re-point the directory, or create it on disk."
+        "[b]✗ not found[/] — re-point it from the dashboard's setup, or create it on disk."
     ),
     _State.UNAVAILABLE: (
         "[b]⚠ models unavailable[/] — the directory exists but can't be read; "
@@ -92,7 +92,6 @@ class ModelsScreen(Screen):
 
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
-        ("s", "app.open_setup", "Setup"),
         # One binding per key: Textual expands a comma-joined pair into one
         # binding each, drawing the footer entry twice.
         Binding("down", "app.focus_next", "Move", key_display="↑↓"),
@@ -104,22 +103,16 @@ class ModelsScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header()
         settings = cast("BlenderBuddyApp", self.app).settings
-        if settings is None:
-            yield Static(
-                "Setup incomplete or unreadable — press 's' to run setup.",
-                id="setup-prompt",
-            )
-        else:
-            # can_focus=False keeps the scroller out of the row focus chain.
-            yield VerticalScroll(
-                Static("Models", classes="section-title"),
-                Static(_SCANNING, id="models-summary", classes="config-detail"),
-                *self._groups(settings),
-                id="detail-panel",
-                can_focus=False,
-            )
-            # Outside the scroller, so it survives a long list. Scan fills it.
-            yield FixPanel(id="fix-panel")
+        # can_focus=False keeps the scroller out of the row focus chain.
+        yield VerticalScroll(
+            Static("Models", classes="section-title"),
+            Static(_SCANNING, id="models-summary", classes="config-detail"),
+            *self._groups(settings),
+            id="detail-panel",
+            can_focus=False,
+        )
+        # Outside the scroller, so it survives a long list. Scan fills it.
+        yield FixPanel(id="fix-panel")
         yield Footer()
 
     def on_mount(self) -> None:

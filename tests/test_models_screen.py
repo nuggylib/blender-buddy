@@ -340,7 +340,7 @@ async def test_models_screen_fix_block_stays_visible_under_a_long_list(
         await pilot.pause()
         text = drawn()
         assert "How to fix issues" in text
-        assert "re-point the directory" in text
+        assert "re-point it from the dashboard's setup" in text
         assert "m39.blend" in text  # the list did scroll
         assert "Quit" in text  # and the key footer is still there too
 
@@ -473,24 +473,3 @@ async def test_models_screen_survives_being_closed_mid_scan(tmp_path, monkeypatc
         await pilot.pause()
         assert app.is_running
         assert isinstance(app.screen, DashboardScreen)
-
-
-async def test_models_screen_shows_setup_prompt_without_a_valid_config(tmp_path):
-    """Reachable with no config (a cancelled `--setup` ordering) — render a
-    prompt rather than raise."""
-    cfg = tmp_path / "config.toml"
-    cfg.write_text("this is not valid toml {{{")
-
-    app = BlenderBuddyApp(config_path=cfg)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        # Awaited, not fired and forgotten: the dashboard has no cards to press
-        # `enter` on in this state, so the push comes from the test — and an
-        # un-awaited one races the screen's own Header into mounting.
-        await app.push_screen("models")
-        assert await _wait_for(pilot, lambda: isinstance(app.screen, ModelsScreen))
-
-        screen = app.screen
-        assert "setup" in _text(screen.query_one("#setup-prompt", Static)).lower()
-        assert not screen.query(ModelRow)
-        assert screen.focused is None

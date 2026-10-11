@@ -23,13 +23,11 @@ class SpecDetailScreen(Screen):
 
     `model_type` is the filename stem, the spec's identity, so there is nothing
     to read from the file to title the page — which is why this screen touches
-    no filesystem at all. It reads no `Settings` either, so it has no
-    `#setup-prompt` branch.
+    no filesystem at all.
     """
 
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
-        ("s", "app.open_setup", "Setup"),
     ]
 
     def __init__(self, model_type: str) -> None:
