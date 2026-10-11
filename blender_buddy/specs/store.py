@@ -1,14 +1,16 @@
 """Read and write the spec files in a specs directory.
 
-`create` is the only thing here that touches the filesystem for writing, and it
-refuses to overwrite. `list_specs` and `count` are read-only and never create
-the directory — a fresh install has no empty `specs/` folder sitting in its
-config directory until the user makes a spec.
+`create` writes a new spec and refuses to overwrite; `update_armature` patches
+an existing one with an atomic replace. `read`, `list_specs` and `count` are
+read-only and never create the directory — a fresh install has no empty
+`specs/` folder sitting in its config directory until the user makes a spec.
 """
 
 from __future__ import annotations
 
 import json
+import os
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
@@ -51,6 +53,50 @@ def create(specs_dir: Path, model_type: str) -> Path:
     return path
 
 
+def read(path: Path) -> dict:
+    """One spec document. Raises `OSError`, or `ValueError` for a malformed one."""
+    document = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(document, dict):
+        raise ValueError("The spec is not a JSON object.")
+    _check_armature(document.get("armature", {}))
+    return document
+
+
+def required_bones(document: dict) -> list[str]:
+    """`armature.required_bones` of a document `read` returned."""
+    return document.get("armature", {}).get("required_bones", [])
+
+
+def bone_name_inverses(document: dict) -> dict[str, str]:
+    """`armature.bone_name_inverses` of a document `read` returned."""
+    return document.get("armature", {}).get("bone_name_inverses", {})
+
+
+def update_armature(
+    path: Path,
+    *,
+    add_bones: Iterable[str] = (),
+    set_inverses: Mapping[str, str] | None = None,
+    drop_inverses: Iterable[str] = (),
+) -> None:
+    """Re-read the spec and patch only `required_bones` / `bone_name_inverses`.
+
+    Bones append in order, skipping ones already present. Drops apply before
+    sets. Raises like `read`, or `OSError` on write.
+    """
+    document = read(path)
+    armature = document.setdefault("armature", {})
+    bones = armature.setdefault("required_bones", [])
+    for bone in add_bones:
+        if bone not in bones:
+            bones.append(bone)
+    inverses = armature.setdefault("bone_name_inverses", {})
+    for segment in drop_inverses:
+        inverses.pop(segment, None)
+    inverses.update(set_inverses or {})
+    _replace(path, document)
+
+
 def list_specs(specs_dir: Path) -> list[SpecEntry]:
     """Every spec in `specs_dir`, sorted by name. A missing dir is `[]`.
 
@@ -78,6 +124,34 @@ def _spec_paths(specs_dir: Path) -> list[Path]:
     except OSError:
         return []
     return sorted(paths, key=lambda path: path.stem)
+
+
+def _check_armature(armature: object) -> None:
+    """Raise `ValueError` unless the armature keys this module edits are well-formed."""
+    if not isinstance(armature, dict):
+        raise ValueError("`armature` is not an object.")
+    bones = armature.get("required_bones", [])
+    if not (isinstance(bones, list) and all(isinstance(b, str) for b in bones)):
+        raise ValueError("`armature.required_bones` is not a list of strings.")
+    inverses = armature.get("bone_name_inverses", {})
+    if not (
+        isinstance(inverses, dict)
+        and all(isinstance(v, str) for v in inverses.values())
+    ):
+        raise ValueError("`armature.bone_name_inverses` is not a string map.")
+
+
+def _replace(path: Path, document: dict) -> None:
+    """Write via a sibling temp file + `os.replace`; no `.tmp` survives a failure."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    try:
+        with tmp.open("w", encoding="utf-8") as f:
+            json.dump(document, f, indent=2)
+            f.write("\n")
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def _read(path: Path) -> SpecEntry:

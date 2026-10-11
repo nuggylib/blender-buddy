@@ -48,6 +48,7 @@ def test_skeleton_is_complete_and_empty():
     assert document["armature"] == {
         "object_name": "",
         "required_bones": [],
+        "bone_name_inverses": {},
         "parenting": {},
     }
     assert document["mesh_roles"] == {}
@@ -291,3 +292,123 @@ def test_count_of_a_missing_dir_is_zero(tmp_path):
     specs = tmp_path / "specs"
     assert store.count(specs) == 0
     assert not specs.exists()
+
+
+# --- read ------------------------------------------------------------------
+
+
+def test_read_returns_the_document(tmp_path):
+    path = store.create(tmp_path, "vehicle")
+    document = store.read(path)
+
+    assert document == schema.skeleton("vehicle")
+    assert store.required_bones(document) == []
+    assert store.bone_name_inverses(document) == {}
+
+
+def test_read_tolerates_a_spec_older_than_bone_name_inverses(tmp_path):
+    path = _write(tmp_path, "vehicle", {"armature": {"required_bones": ["body"]}})
+    document = store.read(path)
+
+    assert store.required_bones(document) == ["body"]
+    assert store.bone_name_inverses(document) == {}
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "{nope",
+        "[]",
+        {"armature": []},
+        {"armature": {"required_bones": "body"}},
+        {"armature": {"required_bones": ["body", 3]}},
+        {"armature": {"bone_name_inverses": []}},
+        {"armature": {"bone_name_inverses": {".front": 1}}},
+    ],
+    ids=[
+        "malformed",
+        "array",
+        "armature-not-object",
+        "bones-not-list",
+        "bones-not-strings",
+        "inverses-not-object",
+        "inverses-not-strings",
+    ],
+)
+def test_read_rejects_a_malformed_spec(tmp_path, payload):
+    path = _write(tmp_path, "vehicle", payload)
+    with pytest.raises(ValueError):
+        store.read(path)
+
+
+def test_read_raises_oserror_for_a_missing_file(tmp_path):
+    with pytest.raises(OSError):
+        store.read(tmp_path / "vehicle.json")
+
+
+# --- update_armature -------------------------------------------------------
+
+
+def test_update_armature_preserves_every_other_key(tmp_path):
+    document = schema.skeleton("vehicle")
+    document["armature"]["object_name"] = "Rig"
+    document["mesh_roles"] = {"body": {"mesh_regex": "^body$"}}
+    document["hand_added"] = True
+    path = _write(tmp_path, "vehicle", document)
+
+    store.update_armature(path, add_bones=["body"], set_inverses={".a": ".b"})
+
+    after = json.loads(path.read_text(encoding="utf-8"))
+    document["armature"]["required_bones"] = ["body"]
+    document["armature"]["bone_name_inverses"] = {".a": ".b"}
+    assert after == document
+
+
+def test_update_armature_appends_in_order_and_dedups(tmp_path):
+    path = store.create(tmp_path, "vehicle")
+    store.update_armature(path, add_bones=["body", "arm.L"])
+    store.update_armature(path, add_bones=["arm.L", "arm.R", "arm.R"])
+
+    assert store.required_bones(store.read(path)) == ["body", "arm.L", "arm.R"]
+
+
+def test_update_armature_drops_then_sets(tmp_path):
+    path = store.create(tmp_path, "vehicle")
+    store.update_armature(path, set_inverses={".front": ".rear", ".rear": ".front"})
+    store.update_armature(
+        path,
+        drop_inverses=[".front", ".rear"],
+        set_inverses={".front": ".back", ".back": ".front"},
+    )
+
+    assert store.bone_name_inverses(store.read(path)) == {
+        ".front": ".back",
+        ".back": ".front",
+    }
+
+
+def test_update_armature_adds_the_key_to_an_older_spec(tmp_path):
+    path = _write(tmp_path, "vehicle", {"model_type": "vehicle"})
+    store.update_armature(path, add_bones=["body"])
+
+    assert json.loads(path.read_text(encoding="utf-8"))["armature"] == {
+        "required_bones": ["body"],
+        "bone_name_inverses": {},
+    }
+
+
+def test_update_armature_leaves_no_tmp_behind(tmp_path):
+    path = store.create(tmp_path, "vehicle")
+    store.update_armature(path, add_bones=["body"])
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["vehicle.json"]
+
+
+def test_update_armature_refuses_a_malformed_spec_and_writes_nothing(tmp_path):
+    path = _write(tmp_path, "vehicle", {"armature": {"required_bones": "body"}})
+    before = path.read_bytes()
+
+    with pytest.raises(ValueError):
+        store.update_armature(path, add_bones=["arm.L"])
+
+    assert path.read_bytes() == before

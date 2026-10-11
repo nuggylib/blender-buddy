@@ -21,10 +21,19 @@ disk. **No Textual, no UI.**
   skeleton (raising `FileExistsError` rather than overwriting),
   `list_specs(specs_dir)` classifies every spec as `OK` / `UNREADABLE` /
   `MISMATCHED`, and `count(specs_dir)` tallies them without parsing any.
+  `read(path)` returns one document, raising `OSError` / `ValueError` when it
+  is unreadable, not an object, or has a malformed `required_bones` /
+  `bone_name_inverses` (`required_bones()` / `bone_name_inverses()` default
+  them for older specs). `update_armature(path, add_bones=, set_inverses=,
+  drop_inverses=)` re-reads, patches **only** those two keys (bones deduped,
+  drops before sets), and writes atomically — hand edits to anything else
+  survive.
 
-## `create` uses O_EXCL, not `config/store.py`'s atomic replace
-`config/store.py` writes to a temp file and `os.replace`s it. `create`
-deliberately does not: a replace would *overwrite* the existing file, defeating
+## Updates replace atomically; `create` uses O_EXCL
+`update_armature` writes a sibling `.tmp` and `os.replace`s it, like
+`config/store.py`: replacing *is* the point of an update, and a crash never
+leaves a half-written spec. `create` deliberately does not: a replace would
+*overwrite* the existing file, defeating
 the one guarantee this function exists to make. `open(path, "x")` makes "reject
 if it exists" the filesystem's job and closes the TOCTOU window an `exists()`
 check would leave open. The cost is that a crash mid-write can leave a

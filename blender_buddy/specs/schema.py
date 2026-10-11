@@ -7,8 +7,9 @@ can hold any texture name or modifier identifier and no code objects.
 The document has four top-level sections:
 
 - `model_type` — the filename stem, repeated inside the file.
-- `armature` — the expected armature object, the bones that must exist, and a
-  parent-pattern → child-patterns map.
+- `armature` — the expected armature object, the bones that must exist, the
+  bone-name segment inverses (`.front` ↔ `.rear`), and a parent-pattern →
+  child-patterns map.
 - `mesh_roles` — role name → `mesh_regex`, `vtx_grp`, `count`, `texture_maps`,
   `weight`.
 - `modifiers` — which modifier types are required on skinned meshes, allowed
@@ -71,7 +72,12 @@ def skeleton(model_type: str) -> dict:
     """A complete, empty-valued spec — valid shape from the first write."""
     return {
         "model_type": model_type,
-        "armature": {"object_name": "", "required_bones": [], "parenting": {}},
+        "armature": {
+            "object_name": "",
+            "required_bones": [],
+            "bone_name_inverses": {},
+            "parenting": {},
+        },
         "mesh_roles": {},
         "modifiers": {
             "required": {"skinned_meshes": []},
