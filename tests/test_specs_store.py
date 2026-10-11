@@ -400,6 +400,18 @@ def test_update_armature_drops_then_sets(tmp_path):
     }
 
 
+def test_update_armature_sets_and_clears_the_object_name(tmp_path):
+    path = store.create(tmp_path, "vehicle")
+    store.update_armature(path, add_bones=["body"], object_name="Rig")
+    store.update_armature(path, add_bones=["head"])
+    assert store.armature_name(store.read(path)) == "Rig"
+
+    store.update_armature(path, object_name="")
+    document = store.read(path)
+    assert store.armature_name(document) == ""
+    assert store.required_bones(document) == ["body", "head"]
+
+
 def test_update_armature_adds_the_key_to_an_older_spec(tmp_path):
     path = _write(tmp_path, "vehicle", {"model_type": "vehicle"})
     store.update_armature(path, add_bones=["body"])

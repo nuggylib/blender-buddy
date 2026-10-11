@@ -24,10 +24,11 @@ disk. **No Textual, no UI.**
   `read(path)` returns one document, raising `OSError` / `ValueError` when it
   is unreadable, not an object, or has a malformed `object_name` /
   `required_bones` / `bone_name_inverses` (`armature_name()` /
-  `required_bones()` / `bone_name_inverses()` default them for older specs). `update_armature(path, add_bones=, set_inverses=,
-  drop_inverses=)` re-reads, patches **only** those two keys (bones deduped,
-  drops before sets), and writes atomically — hand edits to anything else
-  survive.
+  `required_bones()` / `bone_name_inverses()` default them for older specs).
+  `update_armature(path, add_bones=, set_inverses=, drop_inverses=,
+  object_name=)` re-reads, patches **only** those three keys (bones deduped,
+  drops before sets, `object_name=None` leaves the name alone), and writes
+  atomically — hand edits to anything else survive.
 
 ## Updates replace atomically; `create` uses O_EXCL
 `update_armature` writes a sibling `.tmp` and `os.replace`s it, like

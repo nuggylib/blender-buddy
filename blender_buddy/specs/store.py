@@ -83,14 +83,18 @@ def update_armature(
     add_bones: Iterable[str] = (),
     set_inverses: Mapping[str, str] | None = None,
     drop_inverses: Iterable[str] = (),
+    object_name: str | None = None,
 ) -> None:
-    """Re-read the spec and patch only `required_bones` / `bone_name_inverses`.
+    """Re-read the spec and patch only `object_name` / `required_bones` / `bone_name_inverses`.
 
     Bones append in order, skipping ones already present. Drops apply before
-    sets. Raises like `read`, or `OSError` on write.
+    sets. `object_name` is left alone when `None`. Raises like `read`, or
+    `OSError` on write.
     """
     document = read(path)
     armature = document.setdefault("armature", {})
+    if object_name is not None:
+        armature["object_name"] = object_name
     bones = armature.setdefault("required_bones", [])
     for bone in add_bones:
         if bone not in bones:
