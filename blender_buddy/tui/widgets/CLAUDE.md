@@ -42,6 +42,14 @@ in the screen that owns it.
     sibling of the `1fr` scroller instead, which gets the same result with the
     variable height on the side that can report it.
 
+- `field_summary.py` — `FieldSummary(Vertical)`, one spec root field on the
+  spec detail screen: `title` becomes the `border_title`, and `rows` (a tuple
+  of `(label, value)`) render as `label: value` lines. Display-only — no
+  focus, bindings, or messages. It earns its place by repeating once per root
+  field on the same screen. `rows` is a `recompose=True` reactive for
+  `FixPanel`'s reason, and rows use `markup=False` because values come from
+  the spec file (`rich.markup.escape` misses uppercase tags like `[L]`).
+
 ## Conventions
 - **A widget never navigates.** It names where it leads (`target`) and posts a
   message; the hub screen handling that message owns `push_screen`. This is what
