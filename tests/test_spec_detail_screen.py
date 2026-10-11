@@ -294,3 +294,22 @@ async def test_add_data_escape_writes_nothing(tmp_path, monkeypatch):
         assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))
 
         assert spec.read_bytes() == before
+
+
+async def test_armature_name_set_on_the_form_shows_on_return(tmp_path, monkeypatch):
+    app = _app(tmp_path, monkeypatch, specs=("vehicle",))
+    async with app.run_test(size=(80, 40)) as pilot:
+        await _open_spec(pilot, app)
+        assert await _wait_for(pilot, lambda: "Name: not set" in _rows(app))
+
+        await pilot.press("a")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, AddDataModal))
+        await pilot.press("enter")
+        assert await _wait_for(
+            pilot, lambda: isinstance(app.screen, ArmatureFormScreen)
+        )
+        await pilot.press("shift+tab", *"Rig", "enter")
+        await pilot.pause()
+        await pilot.press("escape")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))
+        assert await _wait_for(pilot, lambda: "Name: Rig" in _rows(app))

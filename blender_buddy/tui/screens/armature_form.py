@@ -1,6 +1,6 @@
-"""The armature form — add required bones, one after another, without leaving.
+"""The armature form — name the armature, and add required bones without leaving.
 
-Each bone: type the name, answer one inline question per segment with no known
+Enter in the armature-name field saves it (blank clears it). Each bone: type the name, answer one inline question per segment with no known
 inverse, then confirm a pre-checked checklist of its variants. The name logic
 lives in `specs.bones`; this screen only sequences it and writes via
 `specs.store.update_armature`.
@@ -51,11 +51,12 @@ class _Bone:
 
 
 class ArmatureFormScreen(Screen):
-    """Stay-on form for `armature.required_bones`, pushed as an instance.
+    """Stay-on form for the armature's name and bones, pushed as an instance.
 
-    Each confirmed bone is written immediately, so leaving never loses work.
-    `escape` steps back one question mid-bone, clears a non-empty idle name
-    field, and leaves from an empty one. `q` is shadowed: the form holds Inputs
+    The name and each confirmed bone are written on Enter, so leaving never
+    loses work. `escape` reverts an unsaved armature-name edit, steps back one
+    question mid-bone, clears a non-empty idle bone field, and leaves from an
+    empty one. `q` is shadowed: the form holds Inputs
     and a Button.
     """
 
@@ -93,6 +94,7 @@ class ArmatureFormScreen(Screen):
         super().__init__()
         self.path = path
         self._bone: _Bone | None = None
+        self._saved_name = ""
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -100,6 +102,8 @@ class ArmatureFormScreen(Screen):
             yield Static(
                 f"Armature — {escape(self.path.stem)}", classes="section-title"
             )
+            yield Static("Armature name", classes="config-detail")
+            yield Input(id="armature-name")
             yield Static("Bone name", classes="config-detail")
             yield Input(id="bone-name")
             yield Vertical(id="bone-question")
@@ -109,6 +113,11 @@ class ArmatureFormScreen(Screen):
         yield Footer()
 
     async def on_mount(self) -> None:
+        try:
+            self._saved_name = store.armature_name(store.read(self.path))
+        except (OSError, ValueError):
+            pass  # `_show_bones` reports it
+        self.query_one("#armature-name", Input).value = self._saved_name
         self.query_one("#bone-name", Input).focus()
         await self._show_bones()
 
@@ -116,6 +125,10 @@ class ArmatureFormScreen(Screen):
 
     async def action_back(self) -> None:
         self._status("")
+        armature_name = self.query_one("#armature-name", Input)
+        if armature_name.has_focus and armature_name.value != self._saved_name:
+            armature_name.value = self._saved_name
+            return
         bone = self._bone
         if bone is None:
             name = self.query_one("#bone-name", Input)
@@ -136,6 +149,21 @@ class ArmatureFormScreen(Screen):
         """Absorb `q` so the app's global quit can't fire mid-bone."""
 
     # -- the form ----------------------------------------------------------
+
+    @on(Input.Submitted, "#armature-name")
+    def _on_armature_name(self, event: Input.Submitted) -> None:
+        self._status("")
+        name = event.value.strip()
+        if len(name.encode("utf-8")) > bones.MAX_BYTES:
+            self._status(f"An armature name can be at most {bones.MAX_BYTES} bytes.")
+            return
+        if not self._write(object_name=name):
+            return
+        self._saved_name = name
+        event.input.value = name
+        self._status("Armature name saved." if name else "Armature name cleared.")
+        if self._bone is None:
+            self.query_one("#bone-name", Input).focus()
 
     @on(Input.Submitted, "#bone-name")
     async def _on_name(self, event: Input.Submitted) -> None:

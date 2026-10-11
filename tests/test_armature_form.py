@@ -105,6 +105,88 @@ async def test_form_lists_every_bone_already_in_the_spec(tmp_path, monkeypatch):
         assert await _wait_for(pilot, lambda: _listed(app) == bones)
 
 
+def _armature_name(app):
+    return app.screen.query_one("#armature-name", Input)
+
+
+async def test_armature_name_is_prefilled_and_one_shift_tab_away(tmp_path, monkeypatch):
+    path = _spec(tmp_path)
+    specs_store.update_armature(path, object_name="Rig")
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await _open(pilot, app, path)
+        assert _armature_name(app).value == "Rig"
+        assert _focused_id(app) == "bone-name"
+        await pilot.press("shift+tab")
+        assert _focused_id(app) == "armature-name"
+
+
+async def test_armature_name_is_saved_on_enter(tmp_path, monkeypatch):
+    path = _spec(tmp_path)
+    specs_store.update_armature(path, add_bones=["body"])
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await _open(pilot, app, path)
+        await pilot.press("shift+tab")
+        await _type(pilot, "  Rig[L] ")
+
+        assert _armature(path)["object_name"] == "Rig[L]"
+        assert _armature(path)["required_bones"] == ["body"]
+        assert _armature_name(app).value == "Rig[L]"
+        assert _status(app) == "Armature name saved."
+        assert _focused_id(app) == "bone-name"
+
+
+async def test_blank_armature_name_clears_it(tmp_path, monkeypatch):
+    path = _spec(tmp_path)
+    specs_store.update_armature(path, object_name="Rig")
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await _open(pilot, app, path)
+        await pilot.press("shift+tab")
+        _armature_name(app).value = ""
+        await _type(pilot, "")
+
+        assert _armature(path)["object_name"] == ""
+        assert _status(app) == "Armature name cleared."
+
+
+async def test_over_long_armature_name_is_rejected(tmp_path, monkeypatch):
+    path = _spec(tmp_path)
+    before = path.read_bytes()
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await _open(pilot, app, path)
+        await pilot.press("shift+tab")
+        _armature_name(app).value = "a" * 64
+        await _type(pilot, "")
+
+        assert path.read_bytes() == before
+        assert _armature_name(app).value == "a" * 64
+        assert "63 bytes" in _status(app)
+        assert _focused_id(app) == "armature-name"
+
+
+async def test_escape_reverts_an_unsaved_armature_name_then_leaves(
+    tmp_path, monkeypatch
+):
+    path = _spec(tmp_path)
+    specs_store.update_armature(path, object_name="Rig")
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await _open(pilot, app, path)
+        await pilot.press("shift+tab", "end", "2")
+        assert _armature_name(app).value == "Rig2"
+
+        await pilot.press("escape")
+        assert _armature_name(app).value == "Rig"
+        assert isinstance(app.screen, ArmatureFormScreen)
+        assert _armature(path)["object_name"] == "Rig"
+
+        await pilot.press("escape")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, DashboardScreen))
+
+
 async def test_plain_name_is_written_listed_and_cleared(tmp_path, monkeypatch):
     path = _spec(tmp_path)
     app = _app(tmp_path, monkeypatch)

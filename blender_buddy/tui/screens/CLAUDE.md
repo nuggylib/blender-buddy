@@ -108,7 +108,12 @@ in the app (analogous to a route in a web app).
   root keys; only Armature today). Returns the key, or `None` on `escape`.
   Writes nothing. Own `Footer`, `q` shadowed — `NewSpecModal`'s shape.
 - `armature_form.py` — `ArmatureFormScreen(path)`, a full `Screen` the user
-  stays on to add bone after bone. Enter in `#bone-name` validates, then asks
+  stays on to name the armature and add bone after bone. `#armature-name`
+  sits above the bone field, prefilled from `object_name`. Focus still opens
+  on `#bone-name`, so the name is one shift-tab away. Enter saves the name
+  (blank clears it, over 63 bytes is rejected) and returns focus to
+  `#bone-name`. `escape` there first reverts an unsaved edit. Enter in
+  `#bone-name` validates, then asks
   one `#bone-inverse` question per segment `specs.bones.next_missing` returns
   (relabeled each time; blank = no inverse). **Full chain first:** answers
   stay pending until the last one, then one `update_armature` writes them all

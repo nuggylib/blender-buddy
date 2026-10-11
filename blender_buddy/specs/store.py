@@ -85,7 +85,7 @@ def update_armature(
     drop_inverses: Iterable[str] = (),
     object_name: str | None = None,
 ) -> None:
-    """Re-read the spec and patch only `object_name` / `required_bones` / `bone_name_inverses`.
+    """Re-read the spec and patch only the armature keys passed.
 
     Bones append in order, skipping ones already present. Drops apply before
     sets. `object_name` is left alone when `None`. Raises like `read`, or
