@@ -304,6 +304,17 @@ def test_read_returns_the_document(tmp_path):
     assert document == schema.skeleton("vehicle")
     assert store.required_bones(document) == []
     assert store.bone_name_inverses(document) == {}
+    assert store.armature_name(document) == ""
+
+
+def test_armature_name_returns_the_stored_object_name(tmp_path):
+    path = _write(tmp_path, "vehicle", {"armature": {"object_name": "rig[L]"}})
+    assert store.armature_name(store.read(path)) == "rig[L]"
+
+
+def test_armature_name_defaults_when_the_key_is_missing(tmp_path):
+    path = _write(tmp_path, "vehicle", {"armature": {}})
+    assert store.armature_name(store.read(path)) == ""
 
 
 def test_read_tolerates_a_spec_older_than_bone_name_inverses(tmp_path):
@@ -324,6 +335,7 @@ def test_read_tolerates_a_spec_older_than_bone_name_inverses(tmp_path):
         {"armature": {"required_bones": ["body", 3]}},
         {"armature": {"bone_name_inverses": []}},
         {"armature": {"bone_name_inverses": {".front": 1}}},
+        {"armature": {"object_name": 3}},
     ],
     ids=[
         "malformed",
@@ -333,6 +345,7 @@ def test_read_tolerates_a_spec_older_than_bone_name_inverses(tmp_path):
         "bones-not-strings",
         "inverses-not-object",
         "inverses-not-strings",
+        "object-name-not-string",
     ],
 )
 def test_read_rejects_a_malformed_spec(tmp_path, payload):

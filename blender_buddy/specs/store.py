@@ -72,6 +72,11 @@ def bone_name_inverses(document: dict) -> dict[str, str]:
     return document.get("armature", {}).get("bone_name_inverses", {})
 
 
+def armature_name(document: dict) -> str:
+    """`armature.object_name` of a document `read` returned."""
+    return document.get("armature", {}).get("object_name", "")
+
+
 def update_armature(
     path: Path,
     *,
@@ -127,9 +132,11 @@ def _spec_paths(specs_dir: Path) -> list[Path]:
 
 
 def _check_armature(armature: object) -> None:
-    """Raise `ValueError` unless the armature keys this module edits are well-formed."""
+    """Raise `ValueError` unless the armature keys this module reads are well-formed."""
     if not isinstance(armature, dict):
         raise ValueError("`armature` is not an object.")
+    if not isinstance(armature.get("object_name", ""), str):
+        raise ValueError("`armature.object_name` is not a string.")
     bones = armature.get("required_bones", [])
     if not (isinstance(bones, list) and all(isinstance(b, str) for b in bones)):
         raise ValueError("`armature.required_bones` is not a list of strings.")

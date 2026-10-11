@@ -22,9 +22,9 @@ disk. **No Textual, no UI.**
   `list_specs(specs_dir)` classifies every spec as `OK` / `UNREADABLE` /
   `MISMATCHED`, and `count(specs_dir)` tallies them without parsing any.
   `read(path)` returns one document, raising `OSError` / `ValueError` when it
-  is unreadable, not an object, or has a malformed `required_bones` /
-  `bone_name_inverses` (`required_bones()` / `bone_name_inverses()` default
-  them for older specs). `update_armature(path, add_bones=, set_inverses=,
+  is unreadable, not an object, or has a malformed `object_name` /
+  `required_bones` / `bone_name_inverses` (`armature_name()` /
+  `required_bones()` / `bone_name_inverses()` default them for older specs). `update_armature(path, add_bones=, set_inverses=,
   drop_inverses=)` re-reads, patches **only** those two keys (bones deduped,
   drops before sets), and writes atomically — hand edits to anything else
   survive.
