@@ -11,6 +11,12 @@ disk. **No Textual, no UI.**
   written as.
 - `naming.py` — `normalize(raw)` and `validate(raw)`: the rules a model-type
   name must satisfy to be both a filename and a stored value.
+- `bones.py` — pure bone-name logic: `split`, `validate_name` (63-byte
+  Blender limit, no empty segments), `next_missing`, `validate_inverse`,
+  `pairs` (blank answer → self-mapping), and `variants`, which **raises on any
+  unmapped segment** so a partial checklist can't be built. `.L`/`.R` are
+  `BUILTIN_INVERSES` in code, never written to a spec and never remappable.
+  Source-agnostic: typed or scene-inferred names go through the same calls.
 - `store.py` — the filesystem: `create(specs_dir, model_type)` writes a new
   skeleton (raising `FileExistsError` rather than overwriting),
   `list_specs(specs_dir)` classifies every spec as `OK` / `UNREADABLE` /
