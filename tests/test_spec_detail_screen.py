@@ -3,8 +3,8 @@
 Driven through the pilot from the Specs page, because `enter` on a row is the
 only way in — the screen is pushed as an instance and is not in `SCREENS`.
 
-The screen never reads the spec file, so the malformed and mismatched cases are
-here to assert exactly that: they open the stub like any other spec.
+It reads the spec to list `armature.required_bones`; a malformed spec shows an
+unreadable line with `a` disabled.
 """
 
 import json
@@ -17,6 +17,8 @@ from blender_buddy.config.settings import Settings
 from blender_buddy.godot import discovery
 from blender_buddy.specs import schema
 from blender_buddy.specs import store as specs_store
+from blender_buddy.tui.screens.add_data_modal import AddDataModal
+from blender_buddy.tui.screens.armature_form import ArmatureFormScreen
 from blender_buddy.tui.screens.spec_detail import SpecDetailScreen
 from blender_buddy.tui.screens.specs import SpecsScreen
 from blender_buddy.tui.widgets.spec_row import SpecRow
@@ -103,29 +105,6 @@ async def test_spec_detail_opens_for_the_selected_row(tmp_path, monkeypatch):
         assert "vehicle" in _title(app)
 
 
-async def test_spec_detail_shows_the_name_and_the_placeholder_note(
-    tmp_path, monkeypatch
-):
-    """The name and a note that contents are coming — and no filename, because
-    the stem is the identity and the file is never opened."""
-    app = _app(tmp_path, monkeypatch, specs=("vehicle",))
-    async with app.run_test(size=(80, 24)) as pilot:
-        await _open_spec(pilot, app)
-
-        assert "vehicle" in _title(app)
-        note = _text(app.screen.query_one("#placeholder-note", Static))
-        assert "coming soon" in note
-        # Asserted against the composited screen: a filename leaking onto the
-        # page is a thing the user would *see*.
-        drawn = "\n".join(
-            "".join(segment.text for segment in strip._segments)
-            for strip in app.screen._compositor.render_strips()
-        )
-        assert "vehicle" in drawn
-        assert "vehicle.json" not in drawn
-        assert str(tmp_path) not in drawn
-
-
 async def test_spec_detail_escapes_markup_in_a_spec_name(tmp_path, monkeypatch):
     """A name is user-supplied text rendered through Rich markup — `mech[v2]`
     would otherwise render with a chunk missing."""
@@ -138,17 +117,6 @@ async def test_spec_detail_escapes_markup_in_a_spec_name(tmp_path, monkeypatch):
         await _open_spec(pilot, app)
         assert app.screen.model_type == "mech[v2]"
         assert "mech[v2]" in _title(app)
-
-
-async def test_spec_detail_opens_a_malformed_spec_normally(tmp_path, monkeypatch):
-    """Nothing reads the file, so unreadable JSON is not this screen's problem."""
-    app = _app(tmp_path, monkeypatch, raw=(("broken", "{not json"),))
-    async with app.run_test() as pilot:
-        await _open_spec(pilot, app)
-
-        assert app.screen.model_type == "broken"
-        assert "broken" in _title(app)
-        assert _text(app.screen.query_one("#placeholder-note", Static))
 
 
 async def test_spec_detail_is_headed_with_the_stem_not_the_files_model_type(
@@ -222,16 +190,88 @@ async def test_spec_detail_opens_without_a_valid_config(tmp_path):
         assert "vehicle" in _title(app)
 
 
-async def test_spec_detail_writes_nothing_to_disk(tmp_path, monkeypatch):
-    """Opening a spec is read-only — and `specs/` is never created by it."""
+def _shown(app):
+    return [_text(row) for row in app.screen.query(".bone-row")]
+
+
+def _enabled(app, action):
+    return any(
+        binding.action == action and enabled
+        for (_, binding, enabled, _) in app.screen.active_bindings.values()
+    )
+
+
+async def test_spec_detail_lists_required_bones(tmp_path, monkeypatch):
+    app = _app(tmp_path, monkeypatch, specs=("vehicle",))
+    specs_store.update_armature(
+        tmp_path / "specs" / "vehicle.json", add_bones=["body", "arm[L]"]
+    )
+    async with app.run_test() as pilot:
+        await _open_spec(pilot, app)
+        await _wait_for(pilot, lambda: _shown(app) == ["body", "arm[L]"])
+        assert _shown(app) == ["body", "arm[L]"]
+        assert _enabled(app, "add_data")
+
+
+async def test_spec_detail_shows_the_empty_state(tmp_path, monkeypatch):
+    app = _app(tmp_path, monkeypatch, specs=("vehicle",))
+    async with app.run_test() as pilot:
+        await _open_spec(pilot, app)
+        assert await _wait_for(pilot, lambda: app.screen.query("#armature-empty"))
+        assert "press `a`" in _text(app.screen.query_one("#armature-empty", Static))
+        assert "Add data" in [
+            binding.description
+            for (_, binding, _, _) in app.screen.active_bindings.values()
+        ]
+
+
+async def test_spec_detail_reports_an_unreadable_spec_and_disables_add(
+    tmp_path, monkeypatch
+):
+    app = _app(tmp_path, monkeypatch, raw=(("broken", "{not json"),))
+    async with app.run_test() as pilot:
+        await _open_spec(pilot, app)
+        assert "broken" in _title(app)
+        assert await _wait_for(pilot, lambda: app.screen.query("#armature-unreadable"))
+        assert not _enabled(app, "add_data")
+
+        await pilot.press("a")
+        await pilot.pause()
+        assert isinstance(app.screen, SpecDetailScreen)
+
+
+async def test_add_data_opens_the_armature_form_and_refreshes_on_return(
+    tmp_path, monkeypatch
+):
+    app = _app(tmp_path, monkeypatch, specs=("vehicle",))
+    async with app.run_test(size=(80, 40)) as pilot:
+        await _open_spec(pilot, app)
+        assert await _wait_for(pilot, lambda: app.screen.query("#armature-empty"))
+
+        await pilot.press("a")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, AddDataModal))
+        await pilot.press("enter")
+        assert await _wait_for(
+            pilot, lambda: isinstance(app.screen, ArmatureFormScreen)
+        )
+        assert app.screen.path == tmp_path / "specs" / "vehicle.json"
+
+        await pilot.press(*"body", "enter")
+        await pilot.pause()
+        await pilot.press("escape")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))
+        assert await _wait_for(pilot, lambda: _shown(app) == ["body"])
+
+
+async def test_add_data_escape_writes_nothing(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch, specs=("vehicle",))
     spec = tmp_path / "specs" / "vehicle.json"
     before = spec.read_bytes()
-
     async with app.run_test() as pilot:
         await _open_spec(pilot, app)
+        await pilot.press("a")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, AddDataModal))
+        await pilot.press("escape")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))
 
         assert spec.read_bytes() == before
-        assert sorted(p.name for p in (tmp_path / "specs").iterdir()) == [
-            "vehicle.json"
-        ]

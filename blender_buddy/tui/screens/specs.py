@@ -76,8 +76,8 @@ class SpecsScreen(Screen):
     and `j`/`k` step through them, `enter` selects one. The rows are the only
     focus stops — the title and summary lines are plain `Static`s.
 
-    Selecting a spec pushes `SpecDetailScreen` for it — a stub today, so nothing
-    persists a "current spec" and nothing is read from the file.
+    Selecting a spec pushes `SpecDetailScreen` for it, handed the row's name and
+    path, so nothing persists a "current spec".
     """
 
     BINDINGS = [
@@ -197,4 +197,4 @@ class SpecsScreen(Screen):
     def on_spec_row_selected(self, message: SpecRow.Selected) -> None:
         """Open the spec's detail view. The row names the spec, which is why the
         screen can be pushed as an instance."""
-        self.app.push_screen(SpecDetailScreen(message.model_type))
+        self.app.push_screen(SpecDetailScreen(message.model_type, message.path))
