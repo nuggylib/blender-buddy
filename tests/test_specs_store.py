@@ -305,6 +305,12 @@ def test_read_returns_the_document(tmp_path):
     assert store.required_bones(document) == []
     assert store.bone_name_inverses(document) == {}
     assert store.armature_name(document) == ""
+    assert store.parenting_map(document) == {}
+
+
+def test_parenting_map_defaults_when_the_key_is_missing(tmp_path):
+    path = _write(tmp_path, "vehicle", {"armature": {}})
+    assert store.parenting_map(store.read(path)) == {}
 
 
 def test_armature_name_returns_the_stored_object_name(tmp_path):
@@ -336,6 +342,9 @@ def test_read_tolerates_a_spec_older_than_bone_name_inverses(tmp_path):
         {"armature": {"bone_name_inverses": []}},
         {"armature": {"bone_name_inverses": {".front": 1}}},
         {"armature": {"object_name": 3}},
+        {"armature": {"parenting": []}},
+        {"armature": {"parenting": {"root": "axle"}}},
+        {"armature": {"parenting": {"root": [3]}}},
     ],
     ids=[
         "malformed",
@@ -346,6 +355,9 @@ def test_read_tolerates_a_spec_older_than_bone_name_inverses(tmp_path):
         "inverses-not-object",
         "inverses-not-strings",
         "object-name-not-string",
+        "parenting-not-object",
+        "parenting-not-lists",
+        "parenting-not-strings",
     ],
 )
 def test_read_rejects_a_malformed_spec(tmp_path, payload):
@@ -410,6 +422,22 @@ def test_update_armature_sets_and_clears_the_object_name(tmp_path):
     document = store.read(path)
     assert store.armature_name(document) == ""
     assert store.required_bones(document) == ["body", "head"]
+
+
+def test_update_armature_appends_parenting_and_preserves_other_keys(tmp_path):
+    path = store.create(tmp_path, "vehicle")
+    store.update_armature(path, add_bones=["root"], object_name="Rig")
+    store.update_armature(path, add_parenting={"root": ["axle.{1}.{2}"]})
+    store.update_armature(
+        path, add_parenting={"root": ["axle.{1}.{2}", "susarm.{1}.{2}.{3}"]}
+    )
+
+    document = store.read(path)
+    assert store.parenting_map(document) == {
+        "root": ["axle.{1}.{2}", "susarm.{1}.{2}.{3}"]
+    }
+    assert store.required_bones(document) == ["root"]
+    assert store.armature_name(document) == "Rig"
 
 
 def test_update_armature_adds_the_key_to_an_older_spec(tmp_path):
