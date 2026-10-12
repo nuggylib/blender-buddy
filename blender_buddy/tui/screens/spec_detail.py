@@ -1,9 +1,9 @@
 """The spec detail screen — one spec's contents, and the way to edit them.
 
 Summarizes each root field in a `FieldSummary` (Armature: name and bone count;
-Mesh roles: a role count; the full lists live on their forms). `e` (**Edit data**) opens
-`EditDataModal`, a picker of the spec's root fields, and routes the choice to
-that field's form. The spec is one small file, read inline (like
+Mesh roles: the role names in columns; full details live on the forms). `e`
+(**Edit data**) opens `EditDataModal`, a picker of the spec's root fields, and
+routes the choice to that field's form. The spec is one small file, read inline (like
 `NewSpecModal`'s inline write) and re-read on every resume so it reflects
 whatever a form wrote.
 """
@@ -62,7 +62,10 @@ class SpecDetailScreen(Screen):
             ),
             FieldSummary("Armature", id="armature-summary", classes="field-summary"),
             FieldSummary(
-                "Mesh roles", id="mesh-roles-summary", classes="field-summary"
+                "Mesh roles",
+                empty="No mesh roles yet.",
+                id="mesh-roles-summary",
+                classes="field-summary",
             ),
             unreadable,
             id="detail-panel",
@@ -106,8 +109,8 @@ class SpecDetailScreen(Screen):
                 ("Name", store.armature_name(document) or _NOT_SET),
                 ("Bones", str(len(store.required_bones(document)))),
             )
-            self.query_one("#mesh-roles-summary", FieldSummary).rows = (
-                ("Roles", str(len(store.mesh_roles(document)))),
+            self.query_one("#mesh-roles-summary", FieldSummary).items = tuple(
+                store.mesh_roles(document)
             )
         for summary in self.query(FieldSummary):
             summary.display = self._readable

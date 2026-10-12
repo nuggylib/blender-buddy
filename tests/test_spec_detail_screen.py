@@ -198,8 +198,12 @@ def _rows(app, summary="armature-summary"):
     ]
 
 
-def _role_rows(app):
-    return _rows(app, "mesh-roles-summary")
+def _role_columns(app):
+    summary = app.screen.query_one("#mesh-roles-summary")
+    return [
+        [_text(item) for item in column.query(".field-item")]
+        for column in summary.query(".field-column")
+    ]
 
 
 def _enabled(app, action):
@@ -321,16 +325,43 @@ async def test_armature_name_set_on_the_form_shows_on_return(tmp_path, monkeypat
         assert await _wait_for(pilot, lambda: "Name: Rig" in _rows(app))
 
 
-async def test_spec_detail_counts_the_mesh_roles(tmp_path, monkeypatch):
+async def test_spec_detail_lists_the_mesh_role_names(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch, specs=("vehicle",))
     spec = tmp_path / "specs" / "vehicle.json"
     specs_store.add_mesh_role(spec, "body", "body")
-    specs_store.add_mesh_role(spec, "glass", "glass")
+    specs_store.add_mesh_role(spec, "arm[L]", "body")
     async with app.run_test() as pilot:
         await _open_spec(pilot, app)
-        assert await _wait_for(pilot, lambda: _role_rows(app) == ["Roles: 2"])
+        assert await _wait_for(
+            pilot, lambda: _role_columns(app) == [["body", "arm[L]"]]
+        )
         summary = app.screen.query_one("#mesh-roles-summary")
         assert summary.border_title == "Mesh roles"
+        assert not summary.query(".field-row")
+
+
+async def test_spec_detail_wraps_mesh_roles_into_columns_of_ten(tmp_path, monkeypatch):
+    app = _app(tmp_path, monkeypatch, specs=("vehicle",))
+    spec = tmp_path / "specs" / "vehicle.json"
+    names = [f"role{i:02}" for i in range(23)]
+    for name in names:
+        specs_store.add_mesh_role(spec, name, "body")
+    async with app.run_test() as pilot:
+        await _open_spec(pilot, app)
+        assert await _wait_for(
+            pilot,
+            lambda: _role_columns(app) == [names[:10], names[10:20], names[20:]],
+        )
+
+
+async def test_spec_detail_says_when_there_are_no_mesh_roles(tmp_path, monkeypatch):
+    app = _app(tmp_path, monkeypatch, specs=("vehicle",))
+    async with app.run_test() as pilot:
+        await _open_spec(pilot, app)
+        summary = app.screen.query_one("#mesh-roles-summary")
+        assert await _wait_for(pilot, lambda: bool(summary.query(".field-empty")))
+        assert _text(summary.query_one(".field-empty")) == "No mesh roles yet."
+        assert _role_columns(app) == []
 
 
 async def test_edit_data_opens_the_mesh_roles_form_and_refreshes_on_return(
@@ -341,7 +372,7 @@ async def test_edit_data_opens_the_mesh_roles_form_and_refreshes_on_return(
     specs_store.update_armature(spec, add_bones=["body"])
     async with app.run_test(size=(80, 40)) as pilot:
         await _open_spec(pilot, app)
-        assert await _wait_for(pilot, lambda: _role_rows(app) == ["Roles: 0"])
+        assert await _wait_for(pilot, lambda: _role_columns(app) == [])
 
         await pilot.press("e")
         assert await _wait_for(pilot, lambda: isinstance(app.screen, EditDataModal))
@@ -357,4 +388,4 @@ async def test_edit_data_opens_the_mesh_roles_form_and_refreshes_on_return(
         await pilot.pause()
         await pilot.press("escape", "escape")
         assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))
-        assert await _wait_for(pilot, lambda: _role_rows(app) == ["Roles: 1"])
+        assert await _wait_for(pilot, lambda: _role_columns(app) == [["body"]])
