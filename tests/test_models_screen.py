@@ -10,14 +10,14 @@ from pathlib import Path
 
 from textual.widgets import Static
 
-from blender_buddy.app import BlenderBuddyApp
-from blender_buddy.config import store
-from blender_buddy.config.settings import Settings
-from blender_buddy.godot import discovery as godot_discovery
-from blender_buddy.models import discovery as models_discovery
-from blender_buddy.tui.screens.dashboard import DashboardScreen
-from blender_buddy.tui.screens.models import ModelsScreen
-from blender_buddy.tui.widgets.model_row import ModelRow
+from model_meta.app import BlenderBuddyApp
+from model_meta.config import store
+from model_meta.config.settings import Settings
+from model_meta.godot import discovery as godot_discovery
+from model_meta.models import discovery as models_discovery
+from model_meta.tui.screens.dashboard import DashboardScreen
+from model_meta.tui.screens.models import ModelsScreen
+from model_meta.tui.widgets.model_row import ModelRow
 
 
 def _text(widget):

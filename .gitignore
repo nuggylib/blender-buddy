@@ -14,4 +14,4 @@ __pycache__/
 # PyInstaller — build-time artifacts, never committed
 /build/
 /dist/
-blender_buddy/_version.py
+model_meta/_version.py

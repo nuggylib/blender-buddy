@@ -1,8 +1,8 @@
-"""Unit tests for bone-name segments and inverses (blender_buddy.specs.bones)."""
+"""Unit tests for bone-name segments and inverses (model_meta.specs.bones)."""
 
 import pytest
 
-from blender_buddy.specs import bones
+from model_meta.specs import bones
 
 FRONT_REAR = {".front": ".rear", ".rear": ".front"}
 TOP_BOTTOM = {".top": ".bottom", ".bottom": ".top"}

@@ -9,28 +9,28 @@ from textual import work
 from textual.app import App
 from textual.reactive import reactive
 
-from blender_buddy import __version__
-from blender_buddy.config import paths, store
-from blender_buddy.config.settings import Settings
-from blender_buddy.tui.screens.blender_detail import BlenderDetailScreen
-from blender_buddy.tui.screens.dashboard import DashboardScreen
-from blender_buddy.tui.screens.godot_detail import GodotDetailScreen
-from blender_buddy.tui.screens.models import ModelsScreen
-from blender_buddy.tui.screens.setup_wizard import SetupWizard
-from blender_buddy.tui.screens.specs import SpecsScreen
+from model_meta import __version__
+from model_meta.config import paths, store
+from model_meta.config.settings import Settings
+from model_meta.tui.screens.blender_detail import BlenderDetailScreen
+from model_meta.tui.screens.dashboard import DashboardScreen
+from model_meta.tui.screens.godot_detail import GodotDetailScreen
+from model_meta.tui.screens.models import ModelsScreen
+from model_meta.tui.screens.setup_wizard import SetupWizard
+from model_meta.tui.screens.specs import SpecsScreen
 
 
 def _resource_path(name: str) -> Path:
     """Resolve a bundled data file both when frozen and from a source checkout.
 
     In a PyInstaller build ``sys.frozen`` is set and ``sys._MEIPASS`` points at
-    the extracted bundle root; ``collect_data_files("blender_buddy")`` ships our
-    data under the preserved ``blender_buddy/`` package prefix, so we join that
+    the extracted bundle root; ``collect_data_files("model_meta")`` ships our
+    data under the preserved ``model_meta/`` package prefix, so we join that
     explicitly rather than guessing from the filesystem. From a normal checkout
     the file sits next to this module.
     """
     if getattr(sys, "frozen", False):
-        return Path(sys._MEIPASS) / "blender_buddy" / name  # type: ignore[attr-defined]
+        return Path(sys._MEIPASS) / "model_meta" / name  # type: ignore[attr-defined]
     return Path(__file__).parent / name
 
 
@@ -167,7 +167,7 @@ class BlenderBuddyApp(App):
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Console-script / ``python -m blender_buddy`` entry point.
+    """Console-script / ``python -m model_meta`` entry point.
 
     Bare invocation launches the TUI (unchanged behavior). ``--version`` and
     ``--check`` are non-interactive utilities the release pipeline relies on;
@@ -199,7 +199,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.check:
         # Imported here so the packaging smoke test lives with the pipeline
         # concerns, not in the app's import-time surface.
-        from blender_buddy.diagnostics import run_headless_check
+        from model_meta.diagnostics import run_headless_check
 
         asyncio.run(run_headless_check())
         return

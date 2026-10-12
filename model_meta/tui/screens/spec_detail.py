@@ -20,11 +20,11 @@ from textual.containers import VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
 
-from blender_buddy.specs import store
-from blender_buddy.tui.screens.armature_form import ArmatureFormScreen
-from blender_buddy.tui.screens.edit_data_modal import EditDataModal
-from blender_buddy.tui.screens.mesh_roles_form import MeshRolesFormScreen
-from blender_buddy.tui.widgets.field_summary import FieldSummary
+from model_meta.specs import store
+from model_meta.tui.screens.armature_form import ArmatureFormScreen
+from model_meta.tui.screens.edit_data_modal import EditDataModal
+from model_meta.tui.screens.mesh_roles_form import MeshRolesFormScreen
+from model_meta.tui.widgets.field_summary import FieldSummary
 
 _UNREADABLE = "This spec can't be read — see the fix steps on the Specs page."
 _NOT_SET = "not set"

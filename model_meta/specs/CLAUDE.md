@@ -1,4 +1,4 @@
-# blender_buddy/specs/
+# model_meta/specs/
 
 Validation specs — the documents models are checked against. One JSON file per
 model type, living in `specs/` beside the config file. This category owns the

@@ -1,4 +1,4 @@
-# blender_buddy/models/
+# model_meta/models/
 
 Source-model discovery: finding the `.blend` files behind the configured models
 directories. This category only *locates* models — reading what is inside one

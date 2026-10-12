@@ -121,7 +121,7 @@ jobs:
       - name: Write _version.py
         run: |
           set -euo pipefail
-          printf '__version__ = "%s"\n' "$EMBEDDED_VERSION" > blender_buddy/_version.py
+          printf '__version__ = "%s"\n' "$EMBEDDED_VERSION" > model_meta/_version.py
 
       - name: Build (PyInstaller onedir)
         env:

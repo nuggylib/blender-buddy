@@ -17,7 +17,7 @@ from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
 
 if TYPE_CHECKING:
-    from blender_buddy.app import BlenderBuddyApp
+    from model_meta.app import BlenderBuddyApp
 
 
 class GodotDetailScreen(Screen):

@@ -1,4 +1,4 @@
-# blender_buddy/tui/widgets/
+# model_meta/tui/widgets/
 
 Reusable Textual widgets — the parts screens are assembled from. A widget earns
 a place here once a *second* screen needs it, or once it carries behavior

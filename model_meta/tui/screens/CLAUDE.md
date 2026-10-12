@@ -1,4 +1,4 @@
-# blender_buddy/tui/screens/
+# model_meta/tui/screens/
 
 Full-page Textual `Screen` subclasses. Each screen is one landing view or page
 in the app (analogous to a route in a web app).

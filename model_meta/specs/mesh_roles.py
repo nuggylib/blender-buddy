@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Sequence
 
-from blender_buddy.specs import bones, parenting
+from model_meta.specs import bones, parenting
 
 
 def validate_name(name: str, existing: Collection[str]) -> str | None:

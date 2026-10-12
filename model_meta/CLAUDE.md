@@ -1,4 +1,4 @@
-# blender_buddy/
+# model_meta/
 
 The Blender Buddy application package. Everything under this directory _is_
 Blender Buddy and is packaged together into the published binary (flat layout —
@@ -6,7 +6,7 @@ this package sits at the repository root, not under `src/`).
 
 ## Files
 - `app.py` — `BlenderBuddyApp` (the Textual `App`) and the `main()` entry point
-  used by both the `blender-buddy` console script and `python -m blender_buddy`.
+  used by both the `blender-buddy` console script and `python -m model_meta`.
   `main(argv=None)` takes injectable args (unit-testable without `subprocess`)
   and exposes `--version`, `--check`, and `--setup` (re-run the setup wizard);
   bare invocation still launches the TUI.
@@ -41,13 +41,13 @@ this package sits at the repository root, not under `src/`).
   it resolves even with an absent or corrupt config, and the injected
   `config_path` test seam carries over. Screens read `self.app.specs_dir`, never
   `paths` directly — the same rule that keeps them off `self.app._config_path`.
-- `__main__.py` — enables `python -m blender_buddy`.
+- `__main__.py` — enables `python -m model_meta`.
 - `app.tcss` — application-level Textual stylesheet (loaded via `App.CSS_PATH`).
 - `__init__.py` — package marker; holds `__version__`, imported from an optional
   CI-generated `_version.py` with a static `pyproject`-synced fallback.
 
 ## Build-time version (`_version.py`)
-`__init__.py` imports `__version__` from `blender_buddy._version` if present,
+`__init__.py` imports `__version__` from `model_meta._version` if present,
 else falls back to a literal kept in sync with `pyproject.toml` by
 `tests/test_version.py`. `_version.py` is **gitignored** — CI writes the fully
 resolved canary/dev string there before freezing a binary; it never exists in a

@@ -35,8 +35,8 @@ from textual.widgets import (
     Static,
 )
 
-from blender_buddy.specs import bones, parenting, store
-from blender_buddy.tui.widgets.field_list import FieldList
+from model_meta.specs import bones, parenting, store
+from model_meta.tui.widgets.field_list import FieldList
 
 _EMPTY = "No required bones yet."
 _NO_PARENTING = "No parenting yet."

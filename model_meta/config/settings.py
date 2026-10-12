@@ -10,7 +10,7 @@ Schema history:
 - **v2** — ``[models] directories`` is an array of them. Real projects keep
   models in several places (vehicles, props, characters), which v1 could not
   express. ``store.load`` upgrades a v1 file transparently; see
-  ``blender_buddy/config/CLAUDE.md``.
+  ``model_meta/config/CLAUDE.md``.
 """
 
 from dataclasses import dataclass

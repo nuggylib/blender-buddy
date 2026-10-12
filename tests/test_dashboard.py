@@ -15,21 +15,21 @@ from pathlib import Path
 import pytest
 from textual.widgets import Button, ContentSwitcher, Input, ListView, Static
 
-from blender_buddy.app import BlenderBuddyApp
-from blender_buddy.blender import detect
-from blender_buddy.blender.detect import ProbeOutcome, ProbeResult
-from blender_buddy.config import store
-from blender_buddy.config.settings import Settings
-from blender_buddy.godot import discovery
-from blender_buddy.specs import store as specs_store
-from blender_buddy.tui.screens.blender_detail import BlenderDetailScreen
-from blender_buddy.tui.screens.dashboard import DashboardScreen
-from blender_buddy.tui.screens.godot_detail import GodotDetailScreen
-from blender_buddy.tui.screens.models import ModelsScreen
-from blender_buddy.tui.screens.new_spec_modal import NewSpecModal
-from blender_buddy.tui.screens.spec_detail import SpecDetailScreen
-from blender_buddy.tui.screens.specs import SpecsScreen
-from blender_buddy.tui.widgets.section_card import SectionCard
+from model_meta.app import BlenderBuddyApp
+from model_meta.blender import detect
+from model_meta.blender.detect import ProbeOutcome, ProbeResult
+from model_meta.config import store
+from model_meta.config.settings import Settings
+from model_meta.godot import discovery
+from model_meta.specs import store as specs_store
+from model_meta.tui.screens.blender_detail import BlenderDetailScreen
+from model_meta.tui.screens.dashboard import DashboardScreen
+from model_meta.tui.screens.godot_detail import GodotDetailScreen
+from model_meta.tui.screens.models import ModelsScreen
+from model_meta.tui.screens.new_spec_modal import NewSpecModal
+from model_meta.tui.screens.spec_detail import SpecDetailScreen
+from model_meta.tui.screens.specs import SpecsScreen
+from model_meta.tui.widgets.section_card import SectionCard
 
 
 def _seed(cfg, models, godot, blender_exe="blender"):

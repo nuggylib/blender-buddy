@@ -1,4 +1,4 @@
-"""Unit tests for Blender executable detection (blender_buddy.blender.detect).
+"""Unit tests for Blender executable detection (model_meta.blender.detect).
 
 Headless and pure — no Textual. `candidate_paths` is exercised by monkeypatching
 the platform and `shutil.which`; `probe_version` runs a real subprocess against a
@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from blender_buddy.blender import detect
-from blender_buddy.blender.detect import ExecutableState, ProbeOutcome
+from model_meta.blender import detect
+from model_meta.blender.detect import ExecutableState, ProbeOutcome
 
 posix_only = pytest.mark.skipif(
     sys.platform == "win32", reason="fake exe is a POSIX shell script"

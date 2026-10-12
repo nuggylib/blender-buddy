@@ -1,4 +1,4 @@
-# blender_buddy/blender/
+# model_meta/blender/
 
 Everything Blender-executable: **detecting and validating** the Blender binary
 (implemented) and, in the future, **connecting** to a live Blender scene (still a

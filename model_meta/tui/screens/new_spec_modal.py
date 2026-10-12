@@ -24,11 +24,11 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, Footer, Input, Static
 
-from blender_buddy.config import paths
-from blender_buddy.specs import naming, store
+from model_meta.config import paths
+from model_meta.specs import naming, store
 
 if TYPE_CHECKING:
-    from blender_buddy.app import BlenderBuddyApp
+    from model_meta.app import BlenderBuddyApp
 
 
 class NewSpecModal(ModalScreen[Path | None]):

@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
 
-from blender_buddy.specs import naming, parenting, schema
+from model_meta.specs import naming, parenting, schema
 
 SPEC_GLOB = f"*{naming.SUFFIX}"
 

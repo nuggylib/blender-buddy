@@ -11,17 +11,17 @@ import json
 
 from textual.widgets import Button, Input, Static
 
-from blender_buddy.app import BlenderBuddyApp
-from blender_buddy.config import store as config_store
-from blender_buddy.config.settings import Settings
-from blender_buddy.godot import discovery
-from blender_buddy.specs import schema
-from blender_buddy.specs import store as specs_store
-from blender_buddy.tui.screens.dashboard import DashboardScreen
-from blender_buddy.tui.screens.new_spec_modal import NewSpecModal
-from blender_buddy.tui.screens.spec_detail import SpecDetailScreen
-from blender_buddy.tui.screens.specs import SpecsScreen
-from blender_buddy.tui.widgets.spec_row import SpecRow
+from model_meta.app import BlenderBuddyApp
+from model_meta.config import store as config_store
+from model_meta.config.settings import Settings
+from model_meta.godot import discovery
+from model_meta.specs import schema
+from model_meta.specs import store as specs_store
+from model_meta.tui.screens.dashboard import DashboardScreen
+from model_meta.tui.screens.new_spec_modal import NewSpecModal
+from model_meta.tui.screens.spec_detail import SpecDetailScreen
+from model_meta.tui.screens.specs import SpecsScreen
+from model_meta.tui.widgets.spec_row import SpecRow
 
 
 def _text(widget):

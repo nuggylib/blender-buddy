@@ -1,4 +1,4 @@
-# blender_buddy/godot/
+# model_meta/godot/
 
 Godot project discovery — locating the folders under a user-chosen root that
 contain a `project.godot`. This is the read side the setup wizard uses to show

@@ -13,13 +13,13 @@ Windows-path serialization round-tripping is covered in ``test_config.py``.
 
 from textual.widgets import Button, ContentSwitcher, Input, Label, ListView
 
-from blender_buddy.app import BlenderBuddyApp
-from blender_buddy.blender import detect
-from blender_buddy.blender.detect import ProbeOutcome, ProbeResult
-from blender_buddy.config import store
-from blender_buddy.config.settings import Settings
-from blender_buddy.godot import discovery
-from blender_buddy.tui.screens.dashboard import DashboardScreen
+from model_meta.app import BlenderBuddyApp
+from model_meta.blender import detect
+from model_meta.blender.detect import ProbeOutcome, ProbeResult
+from model_meta.config import store
+from model_meta.config.settings import Settings
+from model_meta.godot import discovery
+from model_meta.tui.screens.dashboard import DashboardScreen
 
 
 def _seed_valid_config(path):

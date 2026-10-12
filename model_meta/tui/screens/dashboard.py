@@ -34,15 +34,15 @@ from textual.css.query import NoMatches
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
 
-from blender_buddy.blender import detect
-from blender_buddy.godot import discovery
-from blender_buddy.specs import store as specs_store
-from blender_buddy.tui.screens.specs import plural_specs
-from blender_buddy.tui.widgets.section_card import SectionCard
+from model_meta.blender import detect
+from model_meta.godot import discovery
+from model_meta.specs import store as specs_store
+from model_meta.tui.screens.specs import plural_specs
+from model_meta.tui.widgets.section_card import SectionCard
 
 if TYPE_CHECKING:
-    from blender_buddy.app import BlenderBuddyApp
-    from blender_buddy.config.settings import Settings
+    from model_meta.app import BlenderBuddyApp
+    from model_meta.config.settings import Settings
 
 _FOUND = "[green]✓ found[/]"
 _MISSING = "[red]✗ not found[/]"

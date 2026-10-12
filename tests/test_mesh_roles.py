@@ -1,8 +1,8 @@
-"""Unit tests for mesh-role logic (blender_buddy.specs.mesh_roles)."""
+"""Unit tests for mesh-role logic (model_meta.specs.mesh_roles)."""
 
 import pytest
 
-from blender_buddy.specs import bones, mesh_roles
+from model_meta.specs import bones, mesh_roles
 
 REQUIRED = [
     "root",

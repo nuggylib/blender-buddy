@@ -3,8 +3,8 @@
 from textual.app import App
 from textual.widgets import OptionList
 
-from blender_buddy.specs import schema
-from blender_buddy.tui.screens.edit_data_modal import FIELDS, EditDataModal
+from model_meta.specs import schema
+from model_meta.tui.screens.edit_data_modal import FIELDS, EditDataModal
 
 
 class _Host(App):

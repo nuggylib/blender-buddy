@@ -1,4 +1,4 @@
-# blender_buddy/config/
+# model_meta/config/
 
 The app's persistence layer — the on-disk config that first-time setup writes and
 every later launch reads. This is the first persistence category in the project.

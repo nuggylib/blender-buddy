@@ -32,9 +32,9 @@ from textual.widgets import (
     Static,
 )
 
-from blender_buddy.blender import detect
-from blender_buddy.config.settings import Settings
-from blender_buddy.godot import discovery
+from model_meta.blender import detect
+from model_meta.config.settings import Settings
+from model_meta.godot import discovery
 
 STEPS = ["step-blender", "step-models", "step-godot"]
 _INPUT_FOR_STEP = {0: "#blender-path", 1: "#models-dir", 2: "#godot-root"}

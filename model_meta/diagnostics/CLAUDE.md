@@ -1,4 +1,4 @@
-# blender_buddy/diagnostics/
+# model_meta/diagnostics/
 
 Build/launch diagnostics: self-tests that verify a **packaged** Blender Buddy
 actually launches. These are release-pipeline concerns, deliberately kept out of

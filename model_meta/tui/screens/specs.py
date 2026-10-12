@@ -29,15 +29,15 @@ from textual.css.query import NoMatches
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
 
-from blender_buddy.specs import store
-from blender_buddy.specs.store import SpecState
-from blender_buddy.tui.screens.new_spec_modal import NewSpecModal
-from blender_buddy.tui.screens.spec_detail import SpecDetailScreen
-from blender_buddy.tui.widgets.fix_panel import FixPanel
-from blender_buddy.tui.widgets.spec_row import SpecRow
+from model_meta.specs import store
+from model_meta.specs.store import SpecState
+from model_meta.tui.screens.new_spec_modal import NewSpecModal
+from model_meta.tui.screens.spec_detail import SpecDetailScreen
+from model_meta.tui.widgets.fix_panel import FixPanel
+from model_meta.tui.widgets.spec_row import SpecRow
 
 if TYPE_CHECKING:
-    from blender_buddy.app import BlenderBuddyApp
+    from model_meta.app import BlenderBuddyApp
 
 _LOADING = "Loading…"
 _EMPTY = "No specs yet — press `n` to create one."

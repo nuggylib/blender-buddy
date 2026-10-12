@@ -20,8 +20,8 @@ from textual.containers import Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, SelectionList, Static
 
-from blender_buddy.specs import mesh_roles, store
-from blender_buddy.tui.widgets.field_list import FieldList
+from model_meta.specs import mesh_roles, store
+from model_meta.tui.widgets.field_list import FieldList
 
 _EMPTY = "No mesh roles yet."
 _NO_BONES = "Add required bones first."

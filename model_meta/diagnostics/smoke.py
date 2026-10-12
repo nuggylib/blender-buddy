@@ -23,7 +23,7 @@ async def run_headless_check(timeout_seconds: float = _CHECK_TIMEOUT_SECONDS) ->
     ``asyncio.run()``. Imports the app lazily to avoid an import cycle with
     ``app.main``, which dispatches ``--check`` here.
     """
-    from blender_buddy.app import BlenderBuddyApp
+    from model_meta.app import BlenderBuddyApp
 
     app = BlenderBuddyApp()
     async with asyncio.timeout(timeout_seconds):

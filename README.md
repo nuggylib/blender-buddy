@@ -127,7 +127,7 @@ uv sync
 # Launch the TUI
 uv run blender-buddy
 # ...or equivalently
-uv run python -m blender_buddy
+uv run python -m model_meta
 
 # Run the test suite
 uv run pytest
@@ -137,7 +137,7 @@ uv run ruff check .
 uv run ruff format .
 ```
 
-During UI development, `uv run textual run --dev blender_buddy.app:BlenderBuddyApp`
+During UI development, `uv run textual run --dev model_meta.app:BlenderBuddyApp`
 enables live CSS editing, and `uv run textual console` (in a second terminal)
 captures log output.
 

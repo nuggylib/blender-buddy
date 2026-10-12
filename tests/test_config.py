@@ -1,4 +1,4 @@
-"""Unit tests for the config persistence layer (blender_buddy.config).
+"""Unit tests for the config persistence layer (model_meta.config).
 
 These are pure I/O tests against a temp dir — no Textual, no subprocess. They
 cover the three load outcomes, the v1→v2 schema migration, the write-once-atomic
@@ -10,8 +10,8 @@ import tomllib
 
 import pytest
 
-from blender_buddy.config import paths, store
-from blender_buddy.config.settings import SCHEMA_VERSION, Settings
+from model_meta.config import paths, store
+from model_meta.config.settings import SCHEMA_VERSION, Settings
 
 
 def _settings(tmp_path, *directories) -> Settings:

@@ -1,4 +1,4 @@
-"""Unit tests for the specs category (blender_buddy.specs).
+"""Unit tests for the specs category (model_meta.specs).
 
 Pure data and filesystem tests against `tmp_path` — no Textual. The vocabulary,
 the name rules (including the path-traversal strings the rules exist to stop),
@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from blender_buddy.specs import naming, schema, store
+from model_meta.specs import naming, schema, store
 
 # --- vocabulary ------------------------------------------------------------
 

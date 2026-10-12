@@ -12,7 +12,7 @@ GitHub-specific configuration for the repository.
   push to `main`. macOS is **Apple Silicon only** — the Intel runner (`macos-13`) is a deprecated,
   scarce image that queues for many minutes (plan I8); Intel Mac users run the arm64 build under
   Rosetta 2. A `version` job resolves the embedded version string **once** (so all legs
-  embed the same string for a commit); each build leg writes the gitignored `blender_buddy/_version.py`,
+  embed the same string for a commit); each build leg writes the gitignored `model_meta/_version.py`,
   runs `pyinstaller blender-buddy.spec` (onedir; on macOS the spec **also** wraps the tree in
   `blender-buddy.app` — the staplable container notarization needs), gates on the `--version`/`--check`
   smoke test against the freshly built launcher (inside the `.app` on macOS), ad-hoc signs the macOS

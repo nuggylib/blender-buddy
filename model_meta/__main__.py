@@ -1,6 +1,6 @@
-"""Enable ``python -m blender_buddy`` to launch the app."""
+"""Enable ``python -m model_meta`` to launch the app."""
 
-from blender_buddy.app import main
+from model_meta.app import main
 
 if __name__ == "__main__":
     main()

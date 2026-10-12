@@ -1,4 +1,4 @@
-# blender_buddy/tui/
+# model_meta/tui/
 
 The Textual UI layer: everything the user sees and interacts with.
 

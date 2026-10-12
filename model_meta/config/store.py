@@ -16,7 +16,7 @@ from pathlib import Path
 
 import tomli_w
 
-from blender_buddy.config.settings import SCHEMA_VERSION, Settings
+from model_meta.config.settings import SCHEMA_VERSION, Settings
 
 # load() outcomes.
 ABSENT = "absent"

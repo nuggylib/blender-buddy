@@ -33,12 +33,12 @@ for pkg in ("textual", "rich"):
     binaries += pkg_binaries
     hiddenimports += pkg_hiddenimports
 
-# Ships app.tcss (and any future .tcss) under the preserved blender_buddy/
+# Ships app.tcss (and any future .tcss) under the preserved model_meta/
 # prefix, which is what app._resource_path() joins against sys._MEIPASS.
-datas += collect_data_files("blender_buddy")
+datas += collect_data_files("model_meta")
 
 a = Analysis(
-    ["blender_buddy/__main__.py"],  # existing entry point — no wrapper needed
+    ["model_meta/__main__.py"],  # existing entry point — no wrapper needed
     datas=datas,
     binaries=binaries,
     hiddenimports=hiddenimports,

@@ -6,8 +6,8 @@ for Godot.
 ## Project Structure
 
 Although Python does not enforce any sort of hard-and-fast project structure, this project uses a
-**flat layout**: all application code lives in the `blender_buddy/` package directory at the repository
-root (not under a `src/` directory). The `blender_buddy/` directory _is_ Blender Buddy — everything in
+**flat layout**: all application code lives in the `model_meta/` package directory at the repository
+root (not under a `src/` directory). The `model_meta/` directory _is_ Blender Buddy — everything in
 it is packaged together into the published, downloadable Blender Buddy binary.
 
 The repository root also holds `blender-buddy.spec`, the committed PyInstaller build definition (see the
@@ -16,12 +16,12 @@ _from_ it, but it is not part of the shipped package.
 
 ### Code Organization & Documentation Conventions
 
-1. **Separate code by category within `blender_buddy/`.** Group source files into meaningful category
+1. **Separate code by category within `model_meta/`.** Group source files into meaningful category
    subpackages (by domain, feature, or responsibility) rather than placing everything at the top
-   level of `blender_buddy/`. When adding new code, put it in the directory that matches its purpose,
+   level of `model_meta/`. When adding new code, put it in the directory that matches its purpose,
    and create a new category directory when none fits.
 2. **Write a `CLAUDE.md` whenever a new directory is created** — whether it is a direct child of
-   `blender_buddy/` or nested any number of levels below it. Each new directory gets its own
+   `model_meta/` or nested any number of levels below it. Each new directory gets its own
    `CLAUDE.md` describing what the directory holds and any conventions specific to it.
 3. **Keep `CLAUDE.md` files current as the project evolves.** When a directory's contents change
    meaningfully (new files, changed responsibilities, new patterns), make a genuine attempt to update

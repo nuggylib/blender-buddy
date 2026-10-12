@@ -25,13 +25,13 @@ from textual.css.query import NoMatches
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
 
-from blender_buddy.models import discovery
-from blender_buddy.tui.widgets.fix_panel import FixPanel
-from blender_buddy.tui.widgets.model_row import ModelRow
+from model_meta.models import discovery
+from model_meta.tui.widgets.fix_panel import FixPanel
+from model_meta.tui.widgets.model_row import ModelRow
 
 if TYPE_CHECKING:
-    from blender_buddy.app import BlenderBuddyApp
-    from blender_buddy.config.settings import Settings
+    from model_meta.app import BlenderBuddyApp
+    from model_meta.config.settings import Settings
 
 _SCANNING = "Scanning…"
 
