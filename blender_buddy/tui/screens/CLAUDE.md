@@ -108,12 +108,18 @@ in the app (analogous to a route in a web app).
   root keys; only Armature today). Returns the key, or `None` on `escape`.
   Writes nothing. Own `Footer`, `q` shadowed — `NewSpecModal`'s shape.
 - `armature_form.py` — `ArmatureFormScreen(path)`, a full `Screen` the user
-  stays on to name the armature and add bone after bone. `#armature-name`
-  sits above the bone field, prefilled from `object_name`. Focus still opens
-  on `#bone-name`, so the name is one shift-tab away. Enter saves the name
-  (blank clears it, over 63 bytes is rejected) and returns focus to
-  `#bone-name`. `escape` there first reverts an unsaved edit. Enter in
-  `#bone-name` validates, then asks
+  stays on to name the armature and add bone after bone. **Read-only until
+  selected:** each field (`#armature-name-view`, `#bone-list`,
+  `#parenting-list`) is a `FieldList`; Enter or a click opens that field's
+  editor (`.editor`, hidden by CSS) and closes any other, discarding its
+  in-progress state unwritten. One editor at a time (`_editing`). Focus opens
+  on `#bone-list`; the name view is one shift-tab away. Parenting with no
+  parentable bones opens nothing and says why in `#bone-status`.
+  **Name:** the `#armature-name` Input replaces its view, prefilled from
+  `object_name`. Enter saves (blank clears, over 63 bytes is rejected) and
+  closes; `escape` closes unsaved.
+  **Bones:** `#bone-editor` sits above the list. Enter in `#bone-name`
+  validates, then asks
   one `#bone-inverse` question per segment `specs.bones.next_missing` returns
   (relabeled each time; blank = no inverse). **Full chain first:** answers
   stay pending until the last one, then one `update_armature` writes them all
@@ -121,20 +127,21 @@ in the app (analogous to a route in a web app).
   and only then are `variants` computed into a pre-checked `#bone-variants`
   checklist with focus on **Add**. The checklist is skipped when there is
   nothing to choose. **Write-on-confirm** — no separate Save. `escape` steps
-  back one question mid-bone, clears an idle name field with text, and leaves
-  from an empty one. Failures keep the field's text, show `#bone-status`, and
-  write nothing. User-typed names render with `markup=False`
-  (`rich.markup.escape` misses uppercase tags like `[L]`).
-  **Two columns** under the name/status: bones (field, question, list) on the
-  left, parenting on the right. **Parenting:** `#parent-bones` is a checklist
-  of `required_bones` (one Tab from an idle `#bone-name`); **Choose children**
+  back one question mid-bone, clears an idle name field with text, and closes
+  the editor from an empty one. Failures keep the field's text, show
+  `#bone-status`, and write nothing. User-typed names render with
+  `markup=False` (`rich.markup.escape` misses uppercase tags like `[L]`).
+  **Two columns** under the name/status: bones on the left, parenting on the
+  right. **Parenting:** `#parenting-editor` sits above the list.
+  `#parent-bones` is a checklist of `required_bones`; **Choose children**
   hides `#parent-picker` and mounts an unchecked `#child-bones` of eligible
   bones (not a checked parent, not already parented, not an ancestor), a
   `#parenting-preview`, and **Add**. Preview and Add both call
   `specs.parenting.infer` on a fresh read, so the preview is what gets written;
   an unpairable child shows its reason in both. `escape` steps back: children →
-  parents (checks kept) → clears checks → leaves. `#parenting-list` and the
-  preview are nested: each key, then its child patterns indented beneath it.
+  parents (checks kept) → clears checks → closes. With no editor open,
+  `escape` leaves. `#parenting-list` and the preview are nested: each key,
+  then its child patterns indented beneath it.
   Never name an attribute `_parent` here — it shadows Textual's `DOMNode._parent`.
 - `blender_detail.py`, `godot_detail.py` — the other two detail screens
   (`blender-detail`, `godot-detail` in `SCREENS`). Still **placeholders**: they

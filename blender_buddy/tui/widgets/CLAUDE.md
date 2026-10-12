@@ -49,6 +49,14 @@ in the screen that owns it.
   field on the same screen. `rows` is a `recompose=True` reactive for
   `FixPanel`'s reason, and rows use `markup=False` because values come from
   the spec file (`rich.markup.escape` misses uppercase tags like `[L]`).
+- `field_list.py` — `FieldList(VerticalScroll, can_focus=True)`, one spec
+  field's contents shown read-only on the armature form. `title` becomes the
+  `border_title`; `lines` (a tuple of `(text, depth)`) render as
+  `.field-list-row`, depth 1 also `.field-list-child`; `empty` shows as
+  `.field-list-empty` when there are none. `enter` or a click posts
+  `FieldList.Selected` (`control` is the list), so the screen opens the
+  editor. Arrow keys scroll. `lines` is a `recompose=True` reactive and rows
+  use `markup=False`, both for `FieldSummary`'s reasons.
 
 ## Conventions
 - **A widget never navigates.** It names where it leads (`target`) and posts a

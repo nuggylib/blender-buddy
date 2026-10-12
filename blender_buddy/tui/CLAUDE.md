@@ -8,7 +8,8 @@ The Textual UI layer: everything the user sees and interacts with.
 - `widgets/` — reusable widgets screens are assembled from (`SectionCard`, the
   focusable dashboard section; `ModelRow`, the focusable model row; `SpecRow`,
   the focusable spec row; `FixPanel`, the "how to fix issues" block;
-  `FieldSummary`, the per-root-field box on the spec detail screen).
+  `FieldSummary`, the per-root-field box on the spec detail screen;
+  `FieldList`, the selectable read-only field on the armature form).
 
 ## Conventions
 - Screens go in `screens/`; reusable widgets go in `widgets/`. A widget belongs
