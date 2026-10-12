@@ -1,7 +1,7 @@
 """The spec detail screen — one spec's contents, and the way to edit them.
 
 Summarizes each root field in a `FieldSummary` (Armature: name and bone count;
-the full bone list lives on the armature form). `e` (**Edit data**) opens
+Mesh roles: a role count; the full lists live on their forms). `e` (**Edit data**) opens
 `EditDataModal`, a picker of the spec's root fields, and routes the choice to
 that field's form. The spec is one small file, read inline (like
 `NewSpecModal`'s inline write) and re-read on every resume so it reflects
@@ -23,6 +23,7 @@ from textual.widgets import Footer, Header, Static
 from blender_buddy.specs import store
 from blender_buddy.tui.screens.armature_form import ArmatureFormScreen
 from blender_buddy.tui.screens.edit_data_modal import EditDataModal
+from blender_buddy.tui.screens.mesh_roles_form import MeshRolesFormScreen
 from blender_buddy.tui.widgets.field_summary import FieldSummary
 
 _UNREADABLE = "This spec can't be read — see the fix steps on the Specs page."
@@ -60,6 +61,9 @@ class SpecDetailScreen(Screen):
                 classes="section-title",
             ),
             FieldSummary("Armature", id="armature-summary", classes="field-summary"),
+            FieldSummary(
+                "Mesh roles", id="mesh-roles-summary", classes="field-summary"
+            ),
             unreadable,
             id="detail-panel",
             can_focus=False,
@@ -82,10 +86,12 @@ class SpecDetailScreen(Screen):
 
     @work(exclusive=True, group="edit-data")
     async def _edit_data(self) -> None:
-        """Pick a root field, then open its form. Armature is the only route."""
+        """Pick a root field, then open its form."""
         field = await self.app.push_screen_wait(EditDataModal())
         if field == "armature":
             self.app.push_screen(ArmatureFormScreen(self.path))
+        elif field == "mesh_roles":
+            self.app.push_screen(MeshRolesFormScreen(self.path))
 
     # -- sections ----------------------------------------------------------
 
@@ -99,6 +105,9 @@ class SpecDetailScreen(Screen):
             self.query_one("#armature-summary", FieldSummary).rows = (
                 ("Name", store.armature_name(document) or _NOT_SET),
                 ("Bones", str(len(store.required_bones(document)))),
+            )
+            self.query_one("#mesh-roles-summary", FieldSummary).rows = (
+                ("Roles", str(len(store.mesh_roles(document)))),
             )
         for summary in self.query(FieldSummary):
             summary.display = self._readable

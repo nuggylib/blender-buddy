@@ -3,8 +3,9 @@
 Driven through the pilot from the Specs page, because `enter` on a row is the
 only way in — the screen is pushed as an instance and is not in `SCREENS`.
 
-It reads the spec to summarize the armature (name and bone count); a malformed
-spec shows an unreadable line in place of the summary, with `e` disabled.
+It reads the spec to summarize the armature (name and bone count) and the mesh
+roles (a count); a malformed spec shows an unreadable line in place of the
+summaries, with `e` disabled.
 """
 
 import json
@@ -19,6 +20,7 @@ from blender_buddy.specs import schema
 from blender_buddy.specs import store as specs_store
 from blender_buddy.tui.screens.armature_form import ArmatureFormScreen
 from blender_buddy.tui.screens.edit_data_modal import EditDataModal
+from blender_buddy.tui.screens.mesh_roles_form import MeshRolesFormScreen
 from blender_buddy.tui.screens.spec_detail import SpecDetailScreen
 from blender_buddy.tui.screens.specs import SpecsScreen
 from blender_buddy.tui.widgets.spec_row import SpecRow
@@ -190,11 +192,14 @@ async def test_spec_detail_opens_without_a_valid_config(tmp_path):
         assert "vehicle" in _title(app)
 
 
-def _rows(app):
+def _rows(app, summary="armature-summary"):
     return [
-        _text(row)
-        for row in app.screen.query_one("#armature-summary").query(".field-row")
+        _text(row) for row in app.screen.query_one(f"#{summary}").query(".field-row")
     ]
+
+
+def _role_rows(app):
+    return _rows(app, "mesh-roles-summary")
 
 
 def _enabled(app, action):
@@ -252,6 +257,7 @@ async def test_spec_detail_reports_an_unreadable_spec_and_disables_edit(
         unreadable = app.screen.query_one("#spec-unreadable", Static)
         assert await _wait_for(pilot, lambda: unreadable.display)
         assert not app.screen.query_one("#armature-summary").display
+        assert not app.screen.query_one("#mesh-roles-summary").display
         assert not _enabled(app, "edit_data")
 
         await pilot.press("e")
@@ -313,3 +319,42 @@ async def test_armature_name_set_on_the_form_shows_on_return(tmp_path, monkeypat
         await pilot.press("escape")
         assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))
         assert await _wait_for(pilot, lambda: "Name: Rig" in _rows(app))
+
+
+async def test_spec_detail_counts_the_mesh_roles(tmp_path, monkeypatch):
+    app = _app(tmp_path, monkeypatch, specs=("vehicle",))
+    spec = tmp_path / "specs" / "vehicle.json"
+    specs_store.add_mesh_role(spec, "body", "body")
+    specs_store.add_mesh_role(spec, "glass", "glass")
+    async with app.run_test() as pilot:
+        await _open_spec(pilot, app)
+        assert await _wait_for(pilot, lambda: _role_rows(app) == ["Roles: 2"])
+        summary = app.screen.query_one("#mesh-roles-summary")
+        assert summary.border_title == "Mesh roles"
+
+
+async def test_edit_data_opens_the_mesh_roles_form_and_refreshes_on_return(
+    tmp_path, monkeypatch
+):
+    app = _app(tmp_path, monkeypatch, specs=("vehicle",))
+    spec = tmp_path / "specs" / "vehicle.json"
+    specs_store.update_armature(spec, add_bones=["body"])
+    async with app.run_test(size=(80, 40)) as pilot:
+        await _open_spec(pilot, app)
+        assert await _wait_for(pilot, lambda: _role_rows(app) == ["Roles: 0"])
+
+        await pilot.press("e")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, EditDataModal))
+        await pilot.press("down", "enter")
+        assert await _wait_for(
+            pilot, lambda: isinstance(app.screen, MeshRolesFormScreen)
+        )
+        assert app.screen.path == spec
+
+        await pilot.press("enter", *"body", "enter")
+        await pilot.pause()
+        await pilot.press(*"body", "enter")
+        await pilot.pause()
+        await pilot.press("escape", "escape")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))
+        assert await _wait_for(pilot, lambda: _role_rows(app) == ["Roles: 1"])

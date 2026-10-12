@@ -12,7 +12,7 @@ from textual.widgets.option_list import Option
 
 # (spec root key, label). A new root field is one entry here plus one route in
 # `SpecDetailScreen._edit_data`.
-FIELDS = (("armature", "Armature"),)
+FIELDS = (("armature", "Armature"), ("mesh_roles", "Mesh roles"))
 
 
 class EditDataModal(ModalScreen[str | None]):
