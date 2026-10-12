@@ -333,7 +333,7 @@ async def test_spec_detail_lists_the_mesh_role_names(tmp_path, monkeypatch):
     async with app.run_test() as pilot:
         await _open_spec(pilot, app)
         assert await _wait_for(
-            pilot, lambda: _role_columns(app) == [["body", "arm[L]"]]
+            pilot, lambda: _role_columns(app) == [["1). body", "2). arm[L]"]]
         )
         summary = app.screen.query_one("#mesh-roles-summary")
         assert summary.border_title == "Mesh roles"
@@ -346,11 +346,14 @@ async def test_spec_detail_wraps_mesh_roles_into_columns_of_ten(tmp_path, monkey
     names = [f"role{i:02}" for i in range(23)]
     for name in names:
         specs_store.add_mesh_role(spec, name, "body")
+    numbered = [f"{n:>2}). {name}" for n, name in enumerate(names, start=1)]
     async with app.run_test() as pilot:
         await _open_spec(pilot, app)
         assert await _wait_for(
             pilot,
-            lambda: _role_columns(app) == [names[:10], names[10:20], names[20:]],
+            lambda: (
+                _role_columns(app) == [numbered[:10], numbered[10:20], numbered[20:]]
+            ),
         )
 
 
@@ -388,4 +391,4 @@ async def test_edit_data_opens_the_mesh_roles_form_and_refreshes_on_return(
         await pilot.pause()
         await pilot.press("escape", "escape")
         assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))
-        assert await _wait_for(pilot, lambda: _role_columns(app) == [["body"]])
+        assert await _wait_for(pilot, lambda: _role_columns(app) == [["1). body"]])

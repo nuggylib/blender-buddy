@@ -14,9 +14,10 @@ class FieldSummary(Vertical):
     """A titled border around `label: value` rows, then `items` in columns.
 
     Assign `rows` and/or `items`; children come from `compose` via `recompose`
-    reactives, as in `FixPanel`, so the auto height re-measures. `items` fill
-    columns of `COLUMN_LENGTH` top to bottom, left to right. `empty` shows when
-    both are empty. Text renders without markup.
+    reactives, as in `FixPanel`, so the auto height re-measures. `items` are
+    numbered `1). ` (right-aligned) and fill columns of `COLUMN_LENGTH` top to
+    bottom, left to right. `empty` shows when both are empty. Text renders
+    without markup.
     """
 
     rows: reactive[tuple[tuple[str, str], ...]] = reactive((), recompose=True)
@@ -31,10 +32,14 @@ class FieldSummary(Vertical):
         for label, value in self.rows:
             yield Static(f"{label}: {value}", classes="field-row", markup=False)
         if self.items:
+            width = len(str(len(self.items)))
+            numbered = [
+                f"{n:>{width}}). {item}" for n, item in enumerate(self.items, start=1)
+            ]
             with Horizontal(classes="field-columns"):
-                for start in range(0, len(self.items), COLUMN_LENGTH):
+                for start in range(0, len(numbered), COLUMN_LENGTH):
                     with Vertical(classes="field-column"):
-                        for item in self.items[start : start + COLUMN_LENGTH]:
-                            yield Static(item, classes="field-item", markup=False)
+                        for line in numbered[start : start + COLUMN_LENGTH]:
+                            yield Static(line, classes="field-item", markup=False)
         elif not self.rows and self._empty:
             yield Static(self._empty, classes="field-empty", markup=False)
