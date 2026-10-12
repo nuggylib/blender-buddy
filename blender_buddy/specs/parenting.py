@@ -11,10 +11,9 @@ Pure functions over strings and dicts, like `bones`.
 
 from __future__ import annotations
 
+import itertools
 import re
-from collections.abc import Iterable, Mapping, Sequence
-
-from blender_buddy.specs import bones
+from collections.abc import Mapping, Sequence
 
 _PLACEHOLDER = re.compile(r"^\{\d+\}$")
 
@@ -106,77 +105,125 @@ def merge(
 
 
 def infer(
-    parent: str,
-    children: Iterable[str],
+    parents: Sequence[str],
+    children: Sequence[str],
     required: Sequence[str],
-    inverses: Mapping[str, str],
     parenting: Mapping[str, Sequence[str]],
 ) -> dict[str, list[str]]:
-    """The entries that parent `children` to `parent` (and its mirrors).
+    """The entries that parent each checked child to its checked parent.
 
-    Per child, in `required` order: bind the variable segments it shares with
-    the parent, then try freeing its other variable segments, then not. A
-    pattern is kept only if what it matches for `parent` was all checked and
-    the merged map stays valid; otherwise the exact names are used.
+    A pattern is kept only if it resolves to exactly the intended pairs and
+    leaves the merged map valid; otherwise the exact names are used. Raises
+    `ValueError` naming a child that matches no checked parent, or several.
     """
-    checked = set(children)
-    table = {**inverses, **bones.BUILTIN_INVERSES}
+    intended = _pair(parents, children)
+    wanted = {(parent, child) for child, parent in intended.items()}
+    key = _key(parents, required)
     entries: dict[str, list[str]] = {}
-    covered: set[str] = set()
+    covered: set[tuple[str, str]] = set()
     for child in required:
-        if child not in checked or child in covered:
+        parent = intended.get(child)
+        if parent is None or (parent, child) in covered:
             continue
-        for key, pattern in _candidates(parent, child, table):
-            bound = match(key, parent)
-            assert bound is not None
-            mine = {b for b in required if match(pattern, b, bound) is not None}
-            trial = merge(entries, {key: [pattern]})
-            if mine <= checked and is_valid(merge(parenting, trial), required):
-                entries, covered = trial, covered | mine
-                break
-        else:
+        found = None
+        if key is not None:
+            for pattern in _child_patterns(key, parent, child):
+                trial = merge(entries, {key: [pattern]})
+                matched = set(pairs({key: [pattern]}, required))
+                if (
+                    matched <= wanted
+                    and _varies(key, pattern, matched)
+                    and is_valid(merge(parenting, trial), required)
+                ):
+                    found = trial, matched
+                    break
+        if found is None:
             entries = merge(entries, {parent: [child]})
-            covered.add(child)
+            covered.add((parent, child))
+        else:
+            entries, matched = found
+            covered |= matched
     return entries
 
 
 # --- internals -------------------------------------------------------------
 
 
-def _candidates(
-    parent: str, child: str, table: Mapping[str, str]
-) -> list[tuple[str, str]]:
-    """(key, child pattern) to try: shared segments bound, then free, then not."""
-    key_parts = parent.split(".")
-    child_parts = child.split(".")
-    replaced: set[int] = set()
+def _pair(parents: Sequence[str], children: Sequence[str]) -> dict[str, str]:
+    """Child → the one checked parent whose distinguishing segments it holds."""
+    split = {parent: parent.split(".") for parent in parents}
+    distinct = {
+        parent: [p for p in parts if not all(p in other for other in split.values())]
+        for parent, parts in split.items()
+    }
+    paired = {}
+    for child in children:
+        parts = child.split(".")
+        matches = [p for p in parents if _in_order(distinct[p], parts)]
+        if len(matches) != 1:
+            which = "no checked parent" if not matches else "more than one parent"
+            raise ValueError(f"'{child}' matches {which}.")
+        paired[child] = matches[0]
+    return paired
+
+
+def _key(parents: Sequence[str], required: Sequence[str]) -> str | None:
+    """A key matching exactly `parents` among `required`, or `None`."""
+    split = [parent.split(".") for parent in parents]
+    if len({len(parts) for parts in split}) != 1:
+        return None
+    key_parts = []
     count = 0
-    start = 1
-    for i, part in enumerate(key_parts[1:], start=1):
-        if not _variable(part, table):
-            continue
-        j = next(
-            (j for j in range(start, len(child_parts)) if child_parts[j] == part),
-            None,
-        )
-        if j is None:
-            continue
-        count += 1
-        key_parts[i] = child_parts[j] = f"{{{count}}}"
-        replaced.add(j)
-        start = j + 1
-    key = ".".join(key_parts)
-    bound_only = ".".join(child_parts)
-    for j, part in enumerate(child_parts[1:], start=1):
-        if j not in replaced and _variable(part, table):
+    for values in zip(*split, strict=True):
+        if len(set(values)) == 1:
+            key_parts.append(values[0])
+        else:
             count += 1
-            child_parts[j] = f"{{{count}}}"
-    candidates = [(key, ".".join(child_parts)), (key, bound_only)]
-    exact = (parent, child)
-    return [c for c in dict.fromkeys(candidates) if c != exact]
+            key_parts.append(f"{{{count}}}")
+    key = ".".join(key_parts)
+    if is_placeholder(key_parts[0]):
+        return None
+    if {bone for bone in required if match(key, bone) is not None} != set(parents):
+        return None
+    return key
 
 
-def _variable(part: str, table: Mapping[str, str]) -> bool:
-    """Whether segment `part` (no leading dot) has a non-self inverse."""
-    inverse = table.get(f".{part}")
-    return inverse is not None and inverse != f".{part}"
+def _child_patterns(key: str, parent: str, child: str) -> list[str]:
+    """Child patterns to try: bound to the key, most free segments first."""
+    bound = match(key, parent) or {}
+    parts = child.split(".")
+    replaced: set[int] = set()
+    start = 1
+    for placeholder, value in bound.items():
+        j = next((j for j in range(start, len(parts)) if parts[j] == value), None)
+        if j is not None:
+            parts[j] = placeholder
+            replaced.add(j)
+            start = j + 1
+    open_positions = [j for j in range(1, len(parts)) if j not in replaced]
+    first = len(bound) + 1
+    patterns = []
+    for size in range(len(open_positions), -1, -1):
+        for chosen in itertools.combinations(open_positions, size):
+            candidate = list(parts)
+            for n, j in enumerate(chosen, start=first):
+                candidate[j] = f"{{{n}}}"
+            patterns.append(".".join(candidate))
+    return patterns
+
+
+def _varies(key: str, pattern: str, matched: set[tuple[str, str]]) -> bool:
+    """Every free placeholder in `pattern` takes at least two values."""
+    values: dict[str, set[str]] = {}
+    for parent, child in matched:
+        bound = match(key, parent) or {}
+        for placeholder, value in (match(pattern, child, bound) or {}).items():
+            if placeholder not in bound:
+                values.setdefault(placeholder, set()).add(value)
+    return all(len(seen) > 1 for seen in values.values())
+
+
+def _in_order(needles: Sequence[str], parts: Sequence[str]) -> bool:
+    """Whether `needles` appear in `parts` in order (not necessarily adjacent)."""
+    rest = iter(parts)
+    return all(needle in rest for needle in needles)

@@ -8,9 +8,9 @@ lives in `specs.bones`; this screen only sequences it and writes via
 **Full chain first:** variants are computed only once `next_missing` returns
 `None`, and a bone's pending inverse answers are written together, once.
 
-Parenting: pick a parent from the required bones, check its children, and Add
-writes what `specs.parenting.infer` returns — the same call the live preview
-shows, so the preview is exactly what gets written.
+Parenting: check parents from the required bones, choose, check children, and
+Add writes what `specs.parenting.infer` returns — the same call the live
+preview shows, so the preview is exactly what gets written.
 """
 
 from __future__ import annotations
@@ -30,11 +30,9 @@ from textual.widgets import (
     Footer,
     Header,
     Input,
-    OptionList,
     SelectionList,
     Static,
 )
-from textual.widgets.option_list import Option
 
 from blender_buddy.specs import bones, parenting, store
 
@@ -99,7 +97,8 @@ class ArmatureFormScreen(Screen):
     ArmatureFormScreen #bone-column {
         margin-right: 2;
     }
-    ArmatureFormScreen #bone-question, ArmatureFormScreen #parent-question {
+    ArmatureFormScreen #bone-question, ArmatureFormScreen #parent-question,
+    ArmatureFormScreen #parent-picker {
         height: auto;
     }
     ArmatureFormScreen #bone-variants {
@@ -128,7 +127,7 @@ class ArmatureFormScreen(Screen):
         self._bone: _Bone | None = None
         self._saved_name = ""
         self._parents: list[str] = []
-        self._picked: str | None = None
+        self._picked: list[str] = []
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -149,8 +148,10 @@ class ArmatureFormScreen(Screen):
                 )
                 yield VerticalScroll(id="bone-list", can_focus=False)
             with Vertical(id="parenting-column"):
-                yield Static("Parent bone", classes="config-detail")
-                yield OptionList(id="parent-bones")
+                with Vertical(id="parent-picker"):
+                    yield Static("Parent bones", classes="config-detail")
+                    yield SelectionList[str](id="parent-bones")
+                    yield Button("Choose children", id="choose-children")
                 yield Static(
                     _NO_PARENTS, id="parent-bones-empty", classes="config-detail"
                 )
@@ -180,12 +181,17 @@ class ArmatureFormScreen(Screen):
 
     async def action_back(self) -> None:
         self._status("")
-        if self._in_parenting() and (self._picked or self._bone is None):
-            if self._picked is None:
+        if self._in_parenting():
+            parents = self.query_one("#parent-bones", SelectionList)
+            if self._picked:
+                await self._drop_children()
+                return
+            if parents.selected:
+                parents.deselect_all()
+                return
+            if self._bone is None:
                 self.app.pop_screen()
-            else:
-                await self._drop_parent()
-            return
+                return
         armature_name = self.query_one("#armature-name", Input)
         if armature_name.has_focus and armature_name.value != self._saved_name:
             armature_name.value = self._saved_name
@@ -271,11 +277,14 @@ class ArmatureFormScreen(Screen):
         selected = set(self.query_one("#bone-variants", SelectionList).selected)
         await self._add([name for name in bone.choices if name in selected])
 
-    @on(OptionList.OptionSelected, "#parent-bones")
-    async def _on_parent(self, event: OptionList.OptionSelected) -> None:
+    @on(Button.Pressed, "#choose-children")
+    async def _on_choose_children(self) -> None:
         self._status("")
-        await self._drop_parent()
-        parent = self._parents[event.option_index]
+        checked = set(self.query_one("#parent-bones", SelectionList).selected)
+        picked = [name for name in self._parents if name in checked]
+        if not picked:
+            self._status("Check at least one parent.")
+            return
         try:
             document = store.read(self.path)
         except (OSError, ValueError) as error:
@@ -283,11 +292,11 @@ class ArmatureFormScreen(Screen):
             return
         required = store.required_bones(document)
         resolved = parenting.resolve(store.parenting_map(document), required)
-        above = parenting.ancestors(parent, resolved)
+        above = set().union(*(parenting.ancestors(p, resolved) for p in picked))
         eligible = [
             name
             for name in required
-            if name != parent
+            if name not in checked
             and name not in resolved
             and name not in above
             and not parenting.has_placeholder_segment(name)
@@ -295,14 +304,14 @@ class ArmatureFormScreen(Screen):
         if not eligible:
             self._status("Every other bone already has a parent.")
             return
-        self._picked = parent
-        self.query_one("#parent-bones", OptionList).display = False
+        self._picked = picked
+        self.query_one("#parent-picker").display = False
         children = SelectionList[str](
             *((Text(name), name, False) for name in eligible), id="child-bones"
         )
         await self.query_one("#parent-question", Vertical).mount(
             Static(
-                f"Children of `{parent}`",
+                f"Children of {', '.join(picked)}",
                 id="child-bones-label",
                 classes="config-detail",
                 markup=False,
@@ -316,7 +325,11 @@ class ArmatureFormScreen(Screen):
     @on(SelectionList.SelectedChanged, "#child-bones")
     def _on_children_changed(self) -> None:
         preview = self.query_one("#parenting-preview", Static)
-        result = self._infer()
+        try:
+            result = self._infer()
+        except ValueError as error:
+            preview.update(str(error))
+            return
         if result is None or not result[1]:
             preview.update("")
             return
@@ -327,7 +340,11 @@ class ArmatureFormScreen(Screen):
     @on(Button.Pressed, "#add-children")
     async def _on_add_children(self) -> None:
         self._status("")
-        result = self._infer()
+        try:
+            result = self._infer()
+        except ValueError as error:
+            self._status(str(error))
+            return
         if result is None:
             return
         required, entries, current = result
@@ -335,19 +352,23 @@ class ArmatureFormScreen(Screen):
             self._status("Check at least one child.")
             return
         if not parenting.is_valid(parenting.merge(current, entries), required):
-            self._status("The spec changed — pick the parent again.")
+            self._status("The spec changed — choose the parents again.")
             return
         if not self._write(add_parenting=entries):
             return
-        await self._drop_parent()
+        self.query_one("#parent-bones", SelectionList).deselect_all()
+        await self._drop_children()
         await self._show_bones()
         self._status("Parenting saved.")
 
     def _infer(
         self,
     ) -> tuple[list[str], dict[str, list[str]], dict[str, list[str]]] | None:
-        """(required, inferred entries, current map) from a fresh read, or `None`."""
-        if self._picked is None:
+        """(required, inferred entries, current map) from a fresh read, or `None`.
+
+        Raises `ValueError` when a checked child can't be paired with a parent.
+        """
+        if not self._picked:
             return None
         try:
             document = store.read(self.path)
@@ -360,7 +381,6 @@ class ArmatureFormScreen(Screen):
             self._picked,
             self.query_one("#child-bones", SelectionList).selected,
             required,
-            store.bone_name_inverses(document),
             current,
         )
         return required, entries, current
@@ -447,20 +467,24 @@ class ArmatureFormScreen(Screen):
     async def _clear_question(self) -> None:
         await self.query_one("#bone-question", Vertical).remove_children()
 
-    async def _drop_parent(self) -> None:
-        self._picked = None
+    async def _drop_children(self) -> None:
+        """Back to the parent checklist, its checks kept."""
+        self._picked = []
         await self.query_one("#parent-question", Vertical).remove_children()
-        parents = self.query_one("#parent-bones", OptionList)
-        parents.display = bool(self._parents)
-        if parents.display:
-            parents.focus()
+        picker = self.query_one("#parent-picker")
+        picker.display = bool(self._parents)
+        if picker.display:
+            self.query_one("#parent-bones", SelectionList).focus()
 
     def _in_parenting(self) -> bool:
         focused = self.focused
         if focused is None:
             return False
-        question = self.query_one("#parent-question", Vertical)
-        return focused.id == "parent-bones" or question in focused.ancestors
+        sections = (
+            self.query_one("#parent-picker"),
+            self.query_one("#parent-question"),
+        )
+        return any(section in focused.ancestors for section in sections)
 
     async def _show_bones(self) -> None:
         try:
@@ -482,13 +506,18 @@ class ArmatureFormScreen(Screen):
         self._parents = [
             name for name in required if not parenting.has_placeholder_segment(name)
         ]
-        parents = self.query_one("#parent-bones", OptionList)
+        parents = self.query_one("#parent-bones", SelectionList)
+        checked = set(parents.selected)
         highlighted = parents.highlighted
         parents.clear_options()
-        parents.add_options([Option(Text(name)) for name in self._parents])
+        parents.add_options(
+            [(Text(name), name, name in checked) for name in self._parents]
+        )
         if self._parents:
             parents.highlighted = min(highlighted or 0, len(self._parents) - 1)
-        parents.display = bool(self._parents) and self._picked is None
+        self.query_one("#parent-picker").display = (
+            bool(self._parents) and not self._picked
+        )
         self.query_one("#parent-bones-empty").display = not required
         skipped = len(self._parents) != len(required)
         self.query_one("#parent-bones-skipped").display = skipped

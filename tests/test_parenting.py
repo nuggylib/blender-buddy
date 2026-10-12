@@ -4,14 +4,6 @@ import pytest
 
 from blender_buddy.specs import parenting
 
-INVERSES = {
-    ".front": ".rear",
-    ".rear": ".front",
-    ".top": ".bottom",
-    ".bottom": ".top",
-    ".body": ".wheel",
-    ".wheel": ".body",
-}
 CORNERS = ["front.L", "front.R", "rear.L", "rear.R"]
 SUSARMS = [
     f"susarm.{c.split('.')[0]}.{h}.{c.split('.')[1]}"
@@ -28,8 +20,12 @@ REQUIRED = [
 ]
 
 
-def _infer(parent, children, existing=None):
-    return parenting.infer(parent, children, REQUIRED, INVERSES, existing or {})
+def _infer(parents, children, existing=None):
+    return parenting.infer(parents, children, REQUIRED, existing or {})
+
+
+def _corners(base):
+    return [f"{base}.{c}" for c in CORNERS]
 
 
 # --- match -----------------------------------------------------------------
@@ -114,58 +110,87 @@ def test_merge_appends_dedupes_and_copies():
     assert existing == {"root": ["a"]}
 
 
-# --- infer: the plan's worked examples --------------------------------------
+# --- infer ------------------------------------------------------------------
 
 
-def test_infer_mirrors_the_parent():
-    entries = _infer("axle.front.L", ["wheel.front.L", "shockmount.wheel.front.L"])
-    assert entries == {"axle.{1}.{2}": ["wheel.{1}.{2}", "shockmount.wheel.{1}.{2}"]}
-    assert len(parenting.pairs(entries, REQUIRED)) == 8
-
-
-def test_infer_binds_by_value_not_position():
-    entries = _infer("susarm.front.top.L", ["shockmount.wheel.front.L"])
-    assert entries == {"susarm.{1}.top.{2}": ["shockmount.wheel.{1}.{2}"]}
+def test_infer_pairs_each_checked_parent_with_its_corner():
+    entries = _infer(_corners("wheel"), _corners("shockmount.wheel"))
+    assert entries == {"wheel.{1}.{2}": ["shockmount.wheel.{1}.{2}"]}
     assert len(parenting.pairs(entries, REQUIRED)) == 4
 
 
-def test_infer_collapses_a_whole_family():
-    assert _infer("root", SUSARMS) == {"root": ["susarm.{1}.{2}.{3}"]}
+def test_infer_two_child_families_share_one_key():
+    children = [*_corners("wheel"), *_corners("shockmount.wheel")]
+    entries = _infer(_corners("axle"), children)
+    assert entries == {"axle.{1}.{2}": ["wheel.{1}.{2}", "shockmount.wheel.{1}.{2}"]}
 
 
-def test_infer_keeps_a_partial_family_exact():
-    entries = _infer("root", ["susarm.front.top.L", "susarm.rear.bottom.R"])
-    assert entries == {"root": ["susarm.front.top.L", "susarm.rear.bottom.R"]}
-
-
-def test_infer_falls_back_to_exact_on_a_mirror_conflict():
-    entries = _infer("axle.front.L", ["wheel.front.L"], {"root": ["wheel.rear.R"]})
+def test_infer_one_parent_stays_literal_and_does_not_mirror():
+    entries = _infer(["axle.front.L"], ["wheel.front.L"])
     assert entries == {"axle.front.L": ["wheel.front.L"]}
 
 
-# --- infer: edges ------------------------------------------------------------
+def test_infer_frees_only_the_segments_that_vary():
+    entries = _infer(["root"], _corners("shockmount.body"))
+    assert entries == {"root": ["shockmount.body.{1}.{2}"]}
 
 
-def test_infer_falls_back_to_exact_on_a_would_be_cycle():
-    existing = {"axle.rear.R": ["wheel.rear.R"]}
-    entries = _infer("wheel.front.L", ["axle.front.L"], existing)
-    assert entries == {"wheel.front.L": ["axle.front.L"]}
+def test_infer_collapses_a_whole_family():
+    assert _infer(["root"], SUSARMS) == {"root": ["susarm.{1}.{2}.{3}"]}
 
 
-def test_infer_groups_children_under_mixed_keys():
-    entries = _infer("axle.front.L", ["root", "wheel.front.L"])
-    assert entries == {"axle.front.L": ["root"], "axle.{1}.{2}": ["wheel.{1}.{2}"]}
+def test_infer_keeps_a_scattered_selection_exact():
+    entries = _infer(["root"], ["susarm.front.top.L", "susarm.rear.bottom.R"])
+    assert entries == {"root": ["susarm.front.top.L", "susarm.rear.bottom.R"]}
 
 
-def test_infer_leaves_unmapped_segments_literal():
-    required = ["hub.x.L", "cap.x.L", "hub.x.R", "cap.x.R"]
-    entries = parenting.infer("hub.x.L", ["cap.x.L"], required, {}, {})
-    assert entries == {"hub.x.{1}": ["cap.x.{1}"]}
+def test_infer_never_frees_a_segment_with_one_value():
+    assert _infer(["root"], ["axle.front.L"]) == {"root": ["axle.front.L"]}
+
+
+def test_infer_binds_by_value_not_position():
+    parents = [b for b in SUSARMS if ".top." in b]
+    entries = _infer(parents, _corners("shockmount.wheel"))
+    assert entries == {"susarm.{1}.top.{2}": ["shockmount.wheel.{1}.{2}"]}
+
+
+def test_infer_parents_that_are_not_a_whole_pattern_stay_exact():
+    entries = _infer(
+        ["wheel.front.L", "wheel.rear.R"],
+        ["shockmount.wheel.front.L", "shockmount.wheel.rear.R"],
+    )
+    assert entries == {
+        "wheel.front.L": ["shockmount.wheel.front.L"],
+        "wheel.rear.R": ["shockmount.wheel.rear.R"],
+    }
+
+
+def test_infer_falls_back_to_exact_on_a_conflict():
+    existing = {"root": ["shockmount.wheel.rear.R"]}
+    entries = _infer(_corners("wheel"), _corners("shockmount.wheel")[:3], existing)
+    assert entries == {
+        "wheel.front.L": ["shockmount.wheel.front.L"],
+        "wheel.front.R": ["shockmount.wheel.front.R"],
+        "wheel.rear.L": ["shockmount.wheel.rear.L"],
+    }
+
+
+@pytest.mark.parametrize(
+    ("parents", "child", "reason"),
+    [
+        (_corners("wheel"), "root", "no checked parent"),
+        (["root", "wheel.front.L"], "axle.front.L", "no checked parent"),
+        (["axle.front.L", "axle.rear.L"], "brace.front.rear", "more than one parent"),
+    ],
+)
+def test_infer_rejects_a_child_it_cannot_pair(parents, child, reason):
+    with pytest.raises(ValueError, match=reason):
+        _infer(parents, [child])
 
 
 @pytest.mark.parametrize("existing", [{}, {"axle.{1}.{2}": ["wheel.{1}.{2}"]}])
 def test_infer_merges_into_an_existing_key(existing):
-    entries = _infer("axle.front.L", ["shockmount.wheel.front.L"], existing)
+    entries = _infer(_corners("axle"), _corners("shockmount.wheel"), existing)
     merged = parenting.merge(existing, entries)
     assert list(merged) == ["axle.{1}.{2}"]
     assert merged["axle.{1}.{2}"][-1] == "shockmount.wheel.{1}.{2}"
