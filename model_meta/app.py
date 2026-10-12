@@ -10,7 +10,7 @@ from textual.app import App
 from textual.reactive import reactive
 
 from model_meta import __version__
-from model_meta.config import paths, store
+from model_meta.config import legacy_dir, paths, store
 from model_meta.config.settings import Settings
 from model_meta.tui.screens.blender_detail import BlenderDetailScreen
 from model_meta.tui.screens.dashboard import DashboardScreen
@@ -207,6 +207,7 @@ def main(argv: list[str] | None = None) -> None:
         asyncio.run(run_headless_check())
         return
 
+    legacy_dir.migrate()
     ModelMetaApp(force_setup=args.setup).run()
 
 

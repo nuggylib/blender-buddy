@@ -19,6 +19,11 @@ every later launch reads. This is the first persistence category in the project.
 - `store.py` — `load(path)` returns `(ABSENT | VALID | CORRUPT, Settings | None)` and
   never raises into the caller; `save(path, settings)` writes once, atomically
   (temp file + `os.replace`).
+- `legacy_dir.py` — `migrate()` renames the pre-rename `blender-buddy` per-user
+  config dir to `model-meta` (config + `specs/` move together). Called once at
+  boot from `app.main()` (never `--check`, never inside `load`). Skipped under
+  `$MODEL_META_CONFIG`, never merges or overwrites an existing `model-meta` dir,
+  and swallows `OSError` so a failed move just falls back to first-run setup.
 
 ## Schema versions
 - **v1** — `[models] directory`: exactly one source-models path.

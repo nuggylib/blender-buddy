@@ -27,6 +27,14 @@ async def test_check_mounts_headlessly_and_succeeds():
     await run_headless_check()
 
 
+@pytest.fixture(autouse=True)
+def _no_legacy_migration(monkeypatch):
+    """Keep main() off the developer's real config dir."""
+    calls = []
+    monkeypatch.setattr(model_meta.app.legacy_dir, "migrate", lambda: calls.append(1))
+    return calls
+
+
 class _FakeApp:
     """Stand-in for ModelMetaApp so we can assert wiring without a TTY."""
 
@@ -60,3 +68,18 @@ def test_bare_invocation_does_not_force_setup(monkeypatch):
     main([])
     assert created["app"].force_setup is False
     assert created["app"].ran is True
+
+
+def test_launch_migrates_legacy_config_dir_first(monkeypatch, _no_legacy_migration):
+    monkeypatch.setattr(model_meta.app, "ModelMetaApp", lambda **kwargs: _FakeApp())
+    main([])
+    assert _no_legacy_migration == [1]
+
+
+def test_check_skips_legacy_migration(monkeypatch, _no_legacy_migration):
+    async def _noop():
+        return None
+
+    monkeypatch.setattr("model_meta.diagnostics.run_headless_check", _noop)
+    main(["--check"])
+    assert _no_legacy_migration == []
