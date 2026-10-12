@@ -26,7 +26,7 @@ GitHub-specific configuration for the repository.
   **Build** workflow completing (not `needs:`), so it stays decoupled from the secret-free, fork-facing
   `build.yml` — a cancelled or failed Build never releases. A single job `if:` guard narrows the many
   `workflow_run` firings to the one that should publish: `conclusion == 'success'` **and** the triggering
-  Build's `event == 'push'` **and** `head_branch == 'main'` **and** `repository == 'nuggylib/blender-buddy'`.
+  Build's `event == 'push'` **and** `head_branch == 'main'` **and** `repository == 'nuggylib/model-meta'`.
   Two jobs. **`sign-macos`** (`macos-14`) takes the ad-hoc `model-meta.app` from the triggering
   Build run (downloaded by `run-id` into an ephemeral keychain workflow), **Developer ID signs** it
   inner-to-outer (nested Mach-O → launcher → bundle) with `--options runtime --timestamp` (hardened
@@ -40,7 +40,7 @@ GitHub-specific configuration for the repository.
   force-moves the `latest` tag to the merged commit, and rolls the `latest` prerelease in place via
   `softprops/action-gh-release`. `publish` is the sole holder of `contents: write`. Both jobs carry the
   same `workflow_run` guard (`conclusion == 'success'` **and** the triggering Build's `event == 'push'`
-  **and** `head_branch == 'main'` **and** `repository == 'nuggylib/blender-buddy'`); when `sign-macos`
+  **and** `head_branch == 'main'` **and** `repository == 'nuggylib/model-meta'`); when `sign-macos`
   is skipped, `publish` (`needs:` it) is skipped too, so nothing releases off a PR/fork build.
 - `release-notes-latest.md` — Body for the rolling `latest` prerelease (`release.yml` passes it as
   `body_path`). Per-OS download/extract/run steps: macOS is **Developer ID signed + notarized +
@@ -103,7 +103,7 @@ GitHub-specific configuration for the repository.
   setting once via the GitHub API rather than click-ops, e.g.:
 
   ```bash
-  gh api --method POST repos/nuggylib/blender-buddy/rulesets --input - <<'JSON'
+  gh api --method POST repos/nuggylib/model-meta/rulesets --input - <<'JSON'
   {
     "name": "Require QA sign-off on main",
     "target": "branch",

@@ -46,7 +46,7 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
-      github.repository == 'nuggylib/blender-buddy'
+      github.repository == 'nuggylib/model-meta'
     runs-on: macos-14
     # notarytool --wait blocks on Apple's service; cap the whole job so a hung
     # submission can't burn the 360-min default on a scarce macOS runner.
@@ -209,7 +209,7 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
-      github.repository == 'nuggylib/blender-buddy'
+      github.repository == 'nuggylib/model-meta'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
