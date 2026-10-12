@@ -94,8 +94,8 @@ in the app (analogous to a route in a web app).
   view opened by `enter` on a `SpecRow`. Not in `SCREENS` (see Conventions).
   Summarizes each root field in a non-focusable `FieldSummary` box — Armature
   shows `Name` (`object_name`, or `not set`) and `Bones` (a count); Mesh roles
-  shows `Roles` (a count). It never lists bones or roles; the full lists live on
-  their forms. The spec is one small
+  lists the role names (`items`, columns of 10; `No mesh roles yet.` when
+  none). It never lists bones or a role's fields; those live on the forms. The spec is one small
   file, read inline via `specs.store.read` and **re-read on
   `on_screen_resume`** so it reflects what a form wrote. A spec `read` rejects
   hides every summary, shows the page-level `#spec-unreadable`, and
