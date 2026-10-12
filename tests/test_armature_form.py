@@ -4,13 +4,13 @@ import json
 
 from textual.widgets import Input, SelectionList, Static
 
-from blender_buddy.app import BlenderBuddyApp
-from blender_buddy.config import store as config_store
-from blender_buddy.config.settings import Settings
-from blender_buddy.godot import discovery
-from blender_buddy.specs import store as specs_store
-from blender_buddy.tui.screens.armature_form import ArmatureFormScreen
-from blender_buddy.tui.screens.dashboard import DashboardScreen
+from model_meta.app import ModelMetaApp
+from model_meta.config import store as config_store
+from model_meta.config.settings import Settings
+from model_meta.godot import discovery
+from model_meta.specs import store as specs_store
+from model_meta.tui.screens.armature_form import ArmatureFormScreen
+from model_meta.tui.screens.dashboard import DashboardScreen
 
 FRONT_REAR = {".front": ".rear", ".rear": ".front"}
 
@@ -37,7 +37,7 @@ def _app(tmp_path, monkeypatch):
             godot_projects_root=str(tmp_path / "godot"),
         ),
     )
-    return BlenderBuddyApp(config_path=cfg)
+    return ModelMetaApp(config_path=cfg)
 
 
 def _spec(tmp_path):

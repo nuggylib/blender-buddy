@@ -11,17 +11,17 @@ import json
 
 from textual.widgets import Button, Input, Static
 
-from blender_buddy.app import BlenderBuddyApp
-from blender_buddy.config import store as config_store
-from blender_buddy.config.settings import Settings
-from blender_buddy.godot import discovery
-from blender_buddy.specs import schema
-from blender_buddy.specs import store as specs_store
-from blender_buddy.tui.screens.dashboard import DashboardScreen
-from blender_buddy.tui.screens.new_spec_modal import NewSpecModal
-from blender_buddy.tui.screens.spec_detail import SpecDetailScreen
-from blender_buddy.tui.screens.specs import SpecsScreen
-from blender_buddy.tui.widgets.spec_row import SpecRow
+from model_meta.app import ModelMetaApp
+from model_meta.config import store as config_store
+from model_meta.config.settings import Settings
+from model_meta.godot import discovery
+from model_meta.specs import schema
+from model_meta.specs import store as specs_store
+from model_meta.tui.screens.dashboard import DashboardScreen
+from model_meta.tui.screens.new_spec_modal import NewSpecModal
+from model_meta.tui.screens.spec_detail import SpecDetailScreen
+from model_meta.tui.screens.specs import SpecsScreen
+from model_meta.tui.widgets.spec_row import SpecRow
 
 
 def _text(widget):
@@ -75,7 +75,7 @@ def _app(tmp_path, monkeypatch, specs=(), broken=()):
         directory = tmp_path / "specs"
         directory.mkdir(parents=True, exist_ok=True)
         (directory / f"{name}.json").write_text(payload, encoding="utf-8")
-    return BlenderBuddyApp(config_path=cfg)
+    return ModelMetaApp(config_path=cfg)
 
 
 def _row_labels(screen):
@@ -528,7 +528,7 @@ async def test_new_spec_works_without_a_valid_config(tmp_path):
     cfg = tmp_path / "config.toml"
     cfg.write_text("this is not valid toml {{{")
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.settings is None
@@ -562,7 +562,7 @@ async def test_specs_screen_lists_without_a_valid_config(tmp_path):
     cfg.write_text("this is not valid toml {{{")
     specs_store.create(tmp_path / "specs", "vehicle")
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.settings is None

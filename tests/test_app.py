@@ -13,13 +13,13 @@ Windows-path serialization round-tripping is covered in ``test_config.py``.
 
 from textual.widgets import Button, ContentSwitcher, Input, Label, ListView
 
-from blender_buddy.app import BlenderBuddyApp
-from blender_buddy.blender import detect
-from blender_buddy.blender.detect import ProbeOutcome, ProbeResult
-from blender_buddy.config import store
-from blender_buddy.config.settings import Settings
-from blender_buddy.godot import discovery
-from blender_buddy.tui.screens.dashboard import DashboardScreen
+from model_meta.app import ModelMetaApp
+from model_meta.blender import detect
+from model_meta.blender.detect import ProbeOutcome, ProbeResult
+from model_meta.config import store
+from model_meta.config.settings import Settings
+from model_meta.godot import discovery
+from model_meta.tui.screens.dashboard import DashboardScreen
 
 
 def _seed_valid_config(path):
@@ -64,7 +64,7 @@ async def test_valid_config_boots_dashboard(tmp_path):
     """Scenario 4 — a valid config boots straight to the dashboard."""
     cfg = tmp_path / "config.toml"
     _seed_valid_config(cfg)
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert isinstance(app.screen, DashboardScreen)
@@ -91,7 +91,7 @@ async def test_v1_config_boots_dashboard_and_is_upgraded(tmp_path, monkeypatch):
         f'[godot]\nprojects_root = "{tmp_path}"\n'
     )
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert isinstance(app.screen, DashboardScreen)
@@ -111,7 +111,7 @@ async def test_specs_dir_is_app_level_state_in_every_config_state(tmp_path):
     lets the Specs page work without any settings at all."""
     cfg = tmp_path / "config.toml"
     cfg.write_text("this is not valid toml {{{")
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.settings is None
@@ -120,7 +120,7 @@ async def test_specs_dir_is_app_level_state_in_every_config_state(tmp_path):
 
 async def test_absent_config_shows_wizard(tmp_path):
     """Scenario 1 (part 1) — no config lands on the wizard, not the dashboard."""
-    app = BlenderBuddyApp(config_path=tmp_path / "config.toml")
+    app = ModelMetaApp(config_path=tmp_path / "config.toml")
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.screen.__class__.__name__ == "SetupWizard"
@@ -142,7 +142,7 @@ async def test_first_run_completes_and_writes_config(tmp_path, monkeypatch):
     godot = tmp_path / "godot"
     godot.mkdir()
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         wizard = app.screen
@@ -181,7 +181,7 @@ async def test_missing_models_dir_offers_creation(tmp_path, monkeypatch):
     monkeypatch.setattr(discovery, "find_projects", lambda root, max_depth=4: [])
     new_models = tmp_path / "does-not-exist-yet"
 
-    app = BlenderBuddyApp(config_path=tmp_path / "config.toml")
+    app = ModelMetaApp(config_path=tmp_path / "config.toml")
     async with app.run_test() as pilot:
         await pilot.pause()
         wizard = app.screen
@@ -227,7 +227,7 @@ async def test_models_step_add_dedup_remove_and_gating(tmp_path, monkeypatch):
     a_file.write_text("not a directory")
 
     cfg = tmp_path / "config.toml"
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         wizard = app.screen
@@ -301,7 +301,7 @@ async def test_removing_last_models_dir_blocks_next(tmp_path, monkeypatch):
     models = tmp_path / "models"
     models.mkdir()
 
-    app = BlenderBuddyApp(config_path=tmp_path / "config.toml")
+    app = ModelMetaApp(config_path=tmp_path / "config.toml")
     async with app.run_test() as pilot:
         await pilot.pause()
         wizard = app.screen
@@ -338,7 +338,7 @@ async def test_edit_mode_prepopulates_models_list_and_leaves_input_blank(tmp_pat
             godot_projects_root=str(tmp_path),
         ),
     )
-    app = BlenderBuddyApp(config_path=cfg, force_setup=True)
+    app = ModelMetaApp(config_path=cfg, force_setup=True)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert await _wait_for(
@@ -353,7 +353,7 @@ async def test_edit_mode_prepopulates_models_list_and_leaves_input_blank(tmp_pat
 async def test_quit_mid_wizard_writes_no_config(tmp_path):
     """Scenario 2 — cancelling mid-wizard writes no config and exits cleanly."""
     cfg = tmp_path / "config.toml"
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.screen.__class__.__name__ == "SetupWizard"
@@ -368,7 +368,7 @@ async def test_corrupt_config_boots_dashboard_and_is_not_overwritten(tmp_path):
     and is never auto-overwritten."""
     cfg = tmp_path / "config.toml"
     cfg.write_text("this is not valid toml {{{")
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert isinstance(app.screen, DashboardScreen)
@@ -380,7 +380,7 @@ async def test_dashboard_s_reopens_wizard_prefilled_and_cancel_preserves(tmp_pat
     prior config unchanged."""
     cfg = tmp_path / "config.toml"
     _seed_valid_config(cfg)
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert isinstance(app.screen, DashboardScreen)
@@ -399,7 +399,7 @@ async def test_dashboard_s_reopens_wizard_prefilled_and_cancel_preserves(tmp_pat
 
 async def test_typing_q_in_a_field_does_not_quit(tmp_path):
     """`q` typed into a focused path field is text input, not the quit binding."""
-    app = BlenderBuddyApp(config_path=tmp_path / "config.toml")
+    app = ModelMetaApp(config_path=tmp_path / "config.toml")
     async with app.run_test() as pilot:
         await pilot.pause()
         wizard = app.screen
@@ -418,7 +418,7 @@ async def test_force_setup_opens_wizard_over_dashboard(tmp_path):
     """--setup opens the wizard even when a valid config exists, pre-populated."""
     cfg = tmp_path / "config.toml"
     _seed_valid_config(cfg)
-    app = BlenderBuddyApp(config_path=cfg, force_setup=True)
+    app = ModelMetaApp(config_path=cfg, force_setup=True)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert await _wait_for(
@@ -431,7 +431,7 @@ async def test_force_setup_opens_wizard_over_dashboard(tmp_path):
 async def test_q_on_a_focused_button_does_not_quit(tmp_path):
     """`q` while a Button (not an Input) holds focus is absorbed by the wizard's
     own binding, not routed to the app's global quit."""
-    app = BlenderBuddyApp(config_path=tmp_path / "config.toml")
+    app = ModelMetaApp(config_path=tmp_path / "config.toml")
     async with app.run_test() as pilot:
         await pilot.pause()
         wizard = app.screen
@@ -447,7 +447,7 @@ async def test_setup_flag_with_absent_config_exits_on_cancel(tmp_path):
     """--setup with no config behaves like a first run: cancelling exits and
     writes nothing rather than stranding a config-less dashboard."""
     cfg = tmp_path / "config.toml"
-    app = BlenderBuddyApp(config_path=cfg, force_setup=True)
+    app = ModelMetaApp(config_path=cfg, force_setup=True)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.screen.__class__.__name__ == "SetupWizard"
@@ -477,7 +477,7 @@ async def test_save_failure_still_shows_dashboard(tmp_path, monkeypatch):
     godot = tmp_path / "godot"
     godot.mkdir()
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         wizard = app.screen

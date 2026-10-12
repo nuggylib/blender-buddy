@@ -12,9 +12,9 @@ GitHub-specific configuration for the repository.
   push to `main`. macOS is **Apple Silicon only** — the Intel runner (`macos-13`) is a deprecated,
   scarce image that queues for many minutes (plan I8); Intel Mac users run the arm64 build under
   Rosetta 2. A `version` job resolves the embedded version string **once** (so all legs
-  embed the same string for a commit); each build leg writes the gitignored `blender_buddy/_version.py`,
-  runs `pyinstaller blender-buddy.spec` (onedir; on macOS the spec **also** wraps the tree in
-  `blender-buddy.app` — the staplable container notarization needs), gates on the `--version`/`--check`
+  embed the same string for a commit); each build leg writes the gitignored `model_meta/_version.py`,
+  runs `pyinstaller model-meta.spec` (onedir; on macOS the spec **also** wraps the tree in
+  `model-meta.app` — the staplable container notarization needs), gates on the `--version`/`--check`
   smoke test against the freshly built launcher (inside the `.app` on macOS), ad-hoc signs the macOS
   `.app` (arm64 canaries execute; **no** Developer ID / notarization here — that is `release.yml`'s
   `sign-macos` job), and packages per-OS (the `.app` tarred to `.tar.gz` on macOS, the onedir tree to
@@ -26,8 +26,8 @@ GitHub-specific configuration for the repository.
   **Build** workflow completing (not `needs:`), so it stays decoupled from the secret-free, fork-facing
   `build.yml` — a cancelled or failed Build never releases. A single job `if:` guard narrows the many
   `workflow_run` firings to the one that should publish: `conclusion == 'success'` **and** the triggering
-  Build's `event == 'push'` **and** `head_branch == 'main'` **and** `repository == 'nuggylib/blender-buddy'`.
-  Two jobs. **`sign-macos`** (`macos-14`) takes the ad-hoc `blender-buddy.app` from the triggering
+  Build's `event == 'push'` **and** `head_branch == 'main'` **and** `repository == 'nuggylib/model-meta'`.
+  Two jobs. **`sign-macos`** (`macos-14`) takes the ad-hoc `model-meta.app` from the triggering
   Build run (downloaded by `run-id` into an ephemeral keychain workflow), **Developer ID signs** it
   inner-to-outer (nested Mach-O → launcher → bundle) with `--options runtime --timestamp` (hardened
   runtime), **notarizes** it via the App Store Connect API (`notarytool submit --wait`, `notarytool log`
@@ -40,14 +40,14 @@ GitHub-specific configuration for the repository.
   force-moves the `latest` tag to the merged commit, and rolls the `latest` prerelease in place via
   `softprops/action-gh-release`. `publish` is the sole holder of `contents: write`. Both jobs carry the
   same `workflow_run` guard (`conclusion == 'success'` **and** the triggering Build's `event == 'push'`
-  **and** `head_branch == 'main'` **and** `repository == 'nuggylib/blender-buddy'`); when `sign-macos`
+  **and** `head_branch == 'main'` **and** `repository == 'nuggylib/model-meta'`); when `sign-macos`
   is skipped, `publish` (`needs:` it) is skipped too, so nothing releases off a PR/fork build.
 - `release-notes-latest.md` — Body for the rolling `latest` prerelease (`release.yml` passes it as
   `body_path`). Per-OS download/extract/run steps: macOS is **Developer ID signed + notarized +
   stapled** (just download and run, offline-safe), with the `xattr -cr` quarantine step kept behind an
   "if you see a security warning" fallback for the un-notarized degraded path. Also the Rosetta 2 note
   for Intel Macs, the moving-`latest` caveat, and `SHA256SUMS` verification. macOS is launched from the
-  `.app`'s inner `Contents/MacOS/blender-buddy` (it is a terminal app — never double-clicked). Keep it
+  `.app`'s inner `Contents/MacOS/model-meta` (it is a terminal app — never double-clicked). Keep it
   in sync with the README's "Download & Install" section.
 - `workflows/qa_signoff.yml` — "QA Sign-off" workflow. Fails a PR until the author ticks the
   **Author** checkbox in the `## QA Sign-off` section of the PR body — the developer's explicit
@@ -72,7 +72,7 @@ GitHub-specific configuration for the repository.
   Dependabot bump move the SHA. (`lint_and_test.yml`/`qa_signoff.yml` still pin by tag — a safe
   follow-up is to migrate them to SHAs too.)
 - **Artifact naming.** `build.yml` uploads canary artifacts on PRs
-  (`blender-buddy-canary-pr<N>-<shortsha>-<target>`, 14-day retention, so a longer review keeps a
+  (`model-meta-canary-pr<N>-<shortsha>-<target>`, 14-day retention, so a longer review keeps a
   live link) and stable release-named artifacts on pushes to `main` (`release-<target>`, 1-day
   retention, consumed by `release.yml`). Filename slugs use only `-` (never `+`/`.`, which break in
   URLs and download tooling); the embedded `--version` string keeps SemVer form
@@ -103,7 +103,7 @@ GitHub-specific configuration for the repository.
   setting once via the GitHub API rather than click-ops, e.g.:
 
   ```bash
-  gh api --method POST repos/nuggylib/blender-buddy/rulesets --input - <<'JSON'
+  gh api --method POST repos/nuggylib/model-meta/rulesets --input - <<'JSON'
   {
     "name": "Require QA sign-off on main",
     "target": "branch",

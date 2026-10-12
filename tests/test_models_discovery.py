@@ -1,4 +1,4 @@
-"""Unit tests for source-model discovery (blender_buddy.models.discovery).
+"""Unit tests for source-model discovery (model_meta.models.discovery).
 
 Headless and pure — a temp directory tree exercises the backup-file exclusion,
 nesting, the depth cap, symlink handling, permission tolerance, the
@@ -9,7 +9,7 @@ import os
 
 import pytest
 
-from blender_buddy.models.discovery import find_blend_files
+from model_meta.models.discovery import find_blend_files
 
 
 def _blend(path):

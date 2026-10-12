@@ -1,8 +1,8 @@
-"""Unit tests for parenting patterns (blender_buddy.specs.parenting)."""
+"""Unit tests for parenting patterns (model_meta.specs.parenting)."""
 
 import pytest
 
-from blender_buddy.specs import parenting
+from model_meta.specs import parenting
 
 CORNERS = ["front.L", "front.R", "rear.L", "rear.R"]
 SUSARMS = [

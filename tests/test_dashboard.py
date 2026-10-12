@@ -15,21 +15,21 @@ from pathlib import Path
 import pytest
 from textual.widgets import Button, ContentSwitcher, Input, ListView, Static
 
-from blender_buddy.app import BlenderBuddyApp
-from blender_buddy.blender import detect
-from blender_buddy.blender.detect import ProbeOutcome, ProbeResult
-from blender_buddy.config import store
-from blender_buddy.config.settings import Settings
-from blender_buddy.godot import discovery
-from blender_buddy.specs import store as specs_store
-from blender_buddy.tui.screens.blender_detail import BlenderDetailScreen
-from blender_buddy.tui.screens.dashboard import DashboardScreen
-from blender_buddy.tui.screens.godot_detail import GodotDetailScreen
-from blender_buddy.tui.screens.models import ModelsScreen
-from blender_buddy.tui.screens.new_spec_modal import NewSpecModal
-from blender_buddy.tui.screens.spec_detail import SpecDetailScreen
-from blender_buddy.tui.screens.specs import SpecsScreen
-from blender_buddy.tui.widgets.section_card import SectionCard
+from model_meta.app import ModelMetaApp
+from model_meta.blender import detect
+from model_meta.blender.detect import ProbeOutcome, ProbeResult
+from model_meta.config import store
+from model_meta.config.settings import Settings
+from model_meta.godot import discovery
+from model_meta.specs import store as specs_store
+from model_meta.tui.screens.blender_detail import BlenderDetailScreen
+from model_meta.tui.screens.dashboard import DashboardScreen
+from model_meta.tui.screens.godot_detail import GodotDetailScreen
+from model_meta.tui.screens.models import ModelsScreen
+from model_meta.tui.screens.new_spec_modal import NewSpecModal
+from model_meta.tui.screens.spec_detail import SpecDetailScreen
+from model_meta.tui.screens.specs import SpecsScreen
+from model_meta.tui.widgets.section_card import SectionCard
 
 
 def _seed(cfg, models, godot, blender_exe="blender"):
@@ -74,7 +74,7 @@ async def test_dashboard_shows_four_sections_in_order(tmp_path, monkeypatch):
     godot.mkdir()
     _seed(cfg, models, godot)
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         screen = app.screen
@@ -102,7 +102,7 @@ async def test_dashboard_marks_missing_models_dir(tmp_path, monkeypatch):
     godot.mkdir()
     _seed(cfg, missing, godot)
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         (value,) = _models_rows(app.screen)
@@ -124,7 +124,7 @@ async def test_dashboard_lists_every_models_directory(tmp_path, monkeypatch):
     godot.mkdir()
     _seed(cfg, [vehicles, props, characters], godot)
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert _models_rows(app.screen) == [
@@ -146,7 +146,7 @@ async def test_dashboard_specs_card_carries_no_status_marker(tmp_path, monkeypat
     _seed(cfg, models, godot)
     specs_store.create(tmp_path / "specs", "vehicle")
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         card = app.screen.query_one("#section-specs", SectionCard)
@@ -169,7 +169,7 @@ async def test_dashboard_specs_card_counts_the_specs(tmp_path, monkeypatch):
     for name in ("vehicle", "character", "prop"):
         specs_store.create(tmp_path / "specs", name)
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert _text(app.screen.query_one("#specs-value", Static)) == "3 specs"
@@ -185,7 +185,7 @@ async def test_dashboard_specs_card_says_none_with_no_specs(tmp_path, monkeypatc
     godot.mkdir()
     _seed(cfg, models, godot)
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert "No specs yet" in _text(app.screen.query_one("#specs-value", Static))
@@ -206,7 +206,7 @@ async def test_dashboard_specs_count_refreshes_on_screen_resume(tmp_path, monkey
     godot.mkdir()
     _seed(cfg, models, godot)
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert "No specs yet" in _text(app.screen.query_one("#specs-value", Static))
@@ -235,7 +235,7 @@ async def test_dashboard_specs_count_renders_without_a_valid_config(tmp_path):
     cfg.write_text("this is not valid toml {{{")
     specs_store.create(tmp_path / "specs", "vehicle")
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.settings is None
@@ -249,7 +249,7 @@ async def test_dashboard_shows_setup_prompt_when_corrupt(tmp_path):
     cfg = tmp_path / "config.toml"
     cfg.write_text("this is not valid toml {{{")
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         screen = app.screen
@@ -275,7 +275,7 @@ async def test_dashboard_godot_count_from_worker(tmp_path, monkeypatch):
     godot.mkdir()
     _seed(cfg, models, godot)
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         count = app.screen.query_one("#godot-count", Static)
@@ -300,7 +300,7 @@ async def test_dashboard_refreshes_after_edit(tmp_path, monkeypatch):
     godot.mkdir()
     _seed(cfg, models, godot)
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert _models_rows(app.screen) == [f"{models}  ✓ found"]
@@ -353,7 +353,7 @@ def _seeded_app(tmp_path, monkeypatch, directories=1):
         directory.mkdir()
         models.append(directory)
     _seed(cfg, models, godot)
-    return BlenderBuddyApp(config_path=cfg)
+    return ModelMetaApp(config_path=cfg)
 
 
 async def test_dashboard_focuses_first_section_on_mount(tmp_path, monkeypatch):
@@ -518,7 +518,7 @@ async def test_dashboard_navigation_without_a_valid_config_acts_on_the_one_card(
     cfg = tmp_path / "config.toml"
     cfg.write_text("this is not valid toml {{{")
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.screen.focused.id == "section-specs"
@@ -574,7 +574,7 @@ async def test_dashboard_footer_keeps_open_without_a_valid_config(tmp_path):
     cfg = tmp_path / "config.toml"
     cfg.write_text("this is not valid toml {{{")
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         descriptions = {

@@ -1,6 +1,6 @@
 # tests/
 
-Test suite for Blender Buddy. Run with `uv run pytest`.
+Test suite for Model Meta. Run with `uv run pytest`.
 
 ## Conventions
 - UI tests drive the app through Textual's headless `App.run_test()` pilot

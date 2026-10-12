@@ -1,0 +1,231 @@
+"""Read and write the spec files in a specs directory.
+
+`create` writes a new spec and refuses to overwrite; `update_armature` and
+`add_mesh_role` patch an existing one with an atomic replace. `read`,
+`list_specs` and `count` are read-only and never create the directory — a fresh
+install has no empty `specs/` folder sitting in its config directory until the
+user makes a spec.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
+from enum import Enum, auto
+from pathlib import Path
+
+from model_meta.specs import naming, parenting, schema
+
+SPEC_GLOB = f"*{naming.SUFFIX}"
+
+
+class SpecState(Enum):
+    """What reading one spec file concluded."""
+
+    OK = auto()
+    UNREADABLE = auto()  # unparseable JSON, not an object, or an OSError
+    MISMATCHED = auto()  # `model_type` disagrees with the filename stem
+
+
+@dataclass(frozen=True)
+class SpecEntry:
+    """One spec on disk. `model_type` is the filename stem — the identity."""
+
+    path: Path
+    model_type: str
+    state: SpecState
+
+
+def create(specs_dir: Path, model_type: str) -> Path:
+    """Write a new skeleton spec. Raises `FileExistsError` / `OSError`."""
+    specs_dir.mkdir(parents=True, exist_ok=True)
+    path = specs_dir / f"{model_type}{naming.SUFFIX}"
+    # "x" is O_EXCL: the collision check and the create are one atomic step, so
+    # two creates racing can never clobber. Deliberately *not* the temp-file +
+    # os.replace dance `config/store.py` uses — a replace would overwrite the
+    # existing file, defeating exactly the guarantee we want here. A crash
+    # mid-write can only leave a malformed *new* file, which `list_specs`
+    # already reports as UNREADABLE.
+    with path.open("x", encoding="utf-8") as f:
+        json.dump(schema.skeleton(model_type), f, indent=2)
+        f.write("\n")
+    return path
+
+
+def read(path: Path) -> dict:
+    """One spec document. Raises `OSError`, or `ValueError` for a malformed one."""
+    document = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(document, dict):
+        raise ValueError("The spec is not a JSON object.")
+    _check_armature(document.get("armature", {}))
+    _check_mesh_roles(document.get("mesh_roles", {}))
+    return document
+
+
+def required_bones(document: dict) -> list[str]:
+    """`armature.required_bones` of a document `read` returned."""
+    return document.get("armature", {}).get("required_bones", [])
+
+
+def bone_name_inverses(document: dict) -> dict[str, str]:
+    """`armature.bone_name_inverses` of a document `read` returned."""
+    return document.get("armature", {}).get("bone_name_inverses", {})
+
+
+def parenting_map(document: dict) -> dict[str, list[str]]:
+    """`armature.parenting` of a document `read` returned."""
+    return document.get("armature", {}).get("parenting", {})
+
+
+def armature_name(document: dict) -> str:
+    """`armature.object_name` of a document `read` returned."""
+    return document.get("armature", {}).get("object_name", "")
+
+
+def mesh_roles(document: dict) -> dict[str, dict]:
+    """`mesh_roles` of a document `read` returned."""
+    return document.get("mesh_roles", {})
+
+
+def update_armature(
+    path: Path,
+    *,
+    add_bones: Iterable[str] = (),
+    set_inverses: Mapping[str, str] | None = None,
+    drop_inverses: Iterable[str] = (),
+    object_name: str | None = None,
+    add_parenting: Mapping[str, Sequence[str]] | None = None,
+) -> None:
+    """Re-read the spec and patch only the armature keys passed.
+
+    Bones append in order, skipping ones already present. Drops apply before
+    sets. `add_parenting` appends child patterns per key, deduped.
+    `object_name` is left alone when `None`. Raises like `read`, or
+    `OSError` on write.
+    """
+    document = read(path)
+    armature = document.setdefault("armature", {})
+    if object_name is not None:
+        armature["object_name"] = object_name
+    bones = armature.setdefault("required_bones", [])
+    for bone in add_bones:
+        if bone not in bones:
+            bones.append(bone)
+    inverses = armature.setdefault("bone_name_inverses", {})
+    for segment in drop_inverses:
+        inverses.pop(segment, None)
+    inverses.update(set_inverses or {})
+    if add_parenting:
+        armature["parenting"] = parenting.merge(
+            armature.get("parenting", {}), add_parenting
+        )
+    _replace(path, document)
+
+
+def add_mesh_role(path: Path, name: str, vtx_grp: str) -> None:
+    """Re-read the spec and add one mesh role, touching nothing else.
+
+    Raises `ValueError` if `name` is already a role, or like `read`, or
+    `OSError` on write.
+    """
+    document = read(path)
+    roles = document.setdefault("mesh_roles", {})
+    if name in roles:
+        raise ValueError(f"'{name}' is already a mesh role.")
+    roles[name] = {"vtx_grp": vtx_grp}
+    _replace(path, document)
+
+
+def list_specs(specs_dir: Path) -> list[SpecEntry]:
+    """Every spec in `specs_dir`, sorted by name. A missing dir is `[]`.
+
+    Read-only: the directory is never created. Failures are caught **per file**
+    so one malformed spec can never blank the list.
+    """
+    return [_read(path) for path in _spec_paths(specs_dir)]
+
+
+def count(specs_dir: Path) -> int:
+    """How many spec files there are, without parsing any of them.
+
+    A single-directory glob — cheap enough for a dashboard card to call inline.
+    """
+    return len(_spec_paths(specs_dir))
+
+
+# --- internals -------------------------------------------------------------
+
+
+def _spec_paths(specs_dir: Path) -> list[Path]:
+    """The spec files in `specs_dir`, sorted by stem. A missing dir is `[]`."""
+    try:
+        paths = [path for path in specs_dir.glob(SPEC_GLOB) if path.is_file()]
+    except OSError:
+        return []
+    return sorted(paths, key=lambda path: path.stem)
+
+
+def _check_armature(armature: object) -> None:
+    """Raise `ValueError` unless the armature keys this module reads are well-formed."""
+    if not isinstance(armature, dict):
+        raise ValueError("`armature` is not an object.")
+    if not isinstance(armature.get("object_name", ""), str):
+        raise ValueError("`armature.object_name` is not a string.")
+    bones = armature.get("required_bones", [])
+    if not (isinstance(bones, list) and all(isinstance(b, str) for b in bones)):
+        raise ValueError("`armature.required_bones` is not a list of strings.")
+    inverses = armature.get("bone_name_inverses", {})
+    if not (
+        isinstance(inverses, dict)
+        and all(isinstance(v, str) for v in inverses.values())
+    ):
+        raise ValueError("`armature.bone_name_inverses` is not a string map.")
+    entries = armature.get("parenting", {})
+    if not (
+        isinstance(entries, dict)
+        and all(
+            isinstance(v, list) and all(isinstance(p, str) for p in v)
+            for v in entries.values()
+        )
+    ):
+        raise ValueError("`armature.parenting` is not a map of string lists.")
+
+
+def _check_mesh_roles(roles: object) -> None:
+    """Raise `ValueError` unless every role is an object with a string `vtx_grp`."""
+    if not (
+        isinstance(roles, dict) and all(isinstance(r, dict) for r in roles.values())
+    ):
+        raise ValueError("`mesh_roles` is not a map of objects.")
+    if not all(isinstance(r.get("vtx_grp", ""), str) for r in roles.values()):
+        raise ValueError("A mesh role's `vtx_grp` is not a string.")
+
+
+def _replace(path: Path, document: dict) -> None:
+    """Write via a sibling temp file + `os.replace`; no `.tmp` survives a failure."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    try:
+        with tmp.open("w", encoding="utf-8") as f:
+            json.dump(document, f, indent=2)
+            f.write("\n")
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def _read(path: Path) -> SpecEntry:
+    """Classify one spec file. The stem is the identity either way."""
+    model_type = path.stem
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError):
+        return SpecEntry(path, model_type, SpecState.UNREADABLE)
+    if not isinstance(raw, dict):
+        # Valid JSON, wrong type — an array or a bare string is not a spec.
+        return SpecEntry(path, model_type, SpecState.UNREADABLE)
+    if raw.get("model_type") != model_type:
+        return SpecEntry(path, model_type, SpecState.MISMATCHED)
+    return SpecEntry(path, model_type, SpecState.OK)

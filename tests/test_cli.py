@@ -1,14 +1,14 @@
 """Covers the non-interactive CLI surface the release pipeline depends on:
-``blender-buddy --version`` and ``blender-buddy --check``, plus the ``--setup``
+``model-meta --version`` and ``model-meta --check``, plus the ``--setup``
 flag's routing into the app (without spinning up a real TTY).
 """
 
 import pytest
 
-import blender_buddy
-import blender_buddy.app
-from blender_buddy.app import main
-from blender_buddy.diagnostics import run_headless_check
+import model_meta
+import model_meta.app
+from model_meta.app import main
+from model_meta.diagnostics import run_headless_check
 
 
 def test_version_flag_echoes_version(capsys):
@@ -17,7 +17,7 @@ def test_version_flag_echoes_version(capsys):
         main(["--version"])
 
     assert exc_info.value.code == 0
-    assert blender_buddy.__version__ in capsys.readouterr().out
+    assert model_meta.__version__ in capsys.readouterr().out
 
 
 async def test_check_mounts_headlessly_and_succeeds():
@@ -27,8 +27,16 @@ async def test_check_mounts_headlessly_and_succeeds():
     await run_headless_check()
 
 
+@pytest.fixture(autouse=True)
+def _no_legacy_migration(monkeypatch):
+    """Keep main() off the developer's real config dir."""
+    calls = []
+    monkeypatch.setattr(model_meta.app.legacy_dir, "migrate", lambda: calls.append(1))
+    return calls
+
+
 class _FakeApp:
-    """Stand-in for BlenderBuddyApp so we can assert wiring without a TTY."""
+    """Stand-in for ModelMetaApp so we can assert wiring without a TTY."""
 
     def __init__(self, force_setup: bool = False) -> None:
         self.force_setup = force_setup
@@ -41,8 +49,8 @@ class _FakeApp:
 def test_setup_flag_launches_app_in_setup_mode(monkeypatch):
     created = {}
     monkeypatch.setattr(
-        blender_buddy.app,
-        "BlenderBuddyApp",
+        model_meta.app,
+        "ModelMetaApp",
         lambda **kwargs: created.setdefault("app", _FakeApp(**kwargs)),
     )
     main(["--setup"])
@@ -53,10 +61,25 @@ def test_setup_flag_launches_app_in_setup_mode(monkeypatch):
 def test_bare_invocation_does_not_force_setup(monkeypatch):
     created = {}
     monkeypatch.setattr(
-        blender_buddy.app,
-        "BlenderBuddyApp",
+        model_meta.app,
+        "ModelMetaApp",
         lambda **kwargs: created.setdefault("app", _FakeApp(**kwargs)),
     )
     main([])
     assert created["app"].force_setup is False
     assert created["app"].ran is True
+
+
+def test_launch_migrates_legacy_config_dir_first(monkeypatch, _no_legacy_migration):
+    monkeypatch.setattr(model_meta.app, "ModelMetaApp", lambda **kwargs: _FakeApp())
+    main([])
+    assert _no_legacy_migration == [1]
+
+
+def test_check_skips_legacy_migration(monkeypatch, _no_legacy_migration):
+    async def _noop():
+        return None
+
+    monkeypatch.setattr("model_meta.diagnostics.run_headless_check", _noop)
+    main(["--check"])
+    assert _no_legacy_migration == []

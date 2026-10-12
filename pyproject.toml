@@ -1,7 +1,7 @@
 [project]
-name = "blender-buddy"
+name = "model-meta"
 version = "0.1.0"
-description = "TUI to expedite building Godot-ready game models in Blender."
+description = "TUI for defining Godot-compatible 3D model specs and validating an open modeling scene against them."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -11,14 +11,14 @@ dependencies = [
 ]
 
 [project.scripts]
-blender-buddy = "blender_buddy.app:main"
+model-meta = "model_meta.app:main"
 
 [build-system]
 requires = ["uv_build>=0.10,<0.11"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-# Flat layout: the package lives at the repository root (blender_buddy/),
+# Flat layout: the package lives at the repository root (model_meta/),
 # not under a src/ directory.
 module-root = ""
 

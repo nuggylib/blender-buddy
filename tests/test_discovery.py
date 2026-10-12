@@ -1,4 +1,4 @@
-"""Unit tests for Godot project discovery (blender_buddy.godot.discovery).
+"""Unit tests for Godot project discovery (model_meta.godot.discovery).
 
 Headless and pure — a temp directory tree exercises nesting, the depth cap, the
 don't-recurse-into-a-project rule, symlink-loop safety, permission tolerance, and
@@ -9,7 +9,7 @@ import os
 
 import pytest
 
-from blender_buddy.godot.discovery import find_projects
+from model_meta.godot.discovery import find_projects
 
 
 def _project(dir_path):

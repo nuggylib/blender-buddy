@@ -12,18 +12,18 @@ import json
 
 from textual.widgets import Static
 
-from blender_buddy.app import BlenderBuddyApp
-from blender_buddy.config import store as config_store
-from blender_buddy.config.settings import Settings
-from blender_buddy.godot import discovery
-from blender_buddy.specs import schema
-from blender_buddy.specs import store as specs_store
-from blender_buddy.tui.screens.armature_form import ArmatureFormScreen
-from blender_buddy.tui.screens.edit_data_modal import EditDataModal
-from blender_buddy.tui.screens.mesh_roles_form import MeshRolesFormScreen
-from blender_buddy.tui.screens.spec_detail import SpecDetailScreen
-from blender_buddy.tui.screens.specs import SpecsScreen
-from blender_buddy.tui.widgets.spec_row import SpecRow
+from model_meta.app import ModelMetaApp
+from model_meta.config import store as config_store
+from model_meta.config.settings import Settings
+from model_meta.godot import discovery
+from model_meta.specs import schema
+from model_meta.specs import store as specs_store
+from model_meta.tui.screens.armature_form import ArmatureFormScreen
+from model_meta.tui.screens.edit_data_modal import EditDataModal
+from model_meta.tui.screens.mesh_roles_form import MeshRolesFormScreen
+from model_meta.tui.screens.spec_detail import SpecDetailScreen
+from model_meta.tui.screens.specs import SpecsScreen
+from model_meta.tui.widgets.spec_row import SpecRow
 
 
 def _text(widget):
@@ -66,7 +66,7 @@ def _app(tmp_path, monkeypatch, specs=(), raw=()):
         directory = tmp_path / "specs"
         directory.mkdir(parents=True, exist_ok=True)
         (directory / f"{name}.json").write_text(payload, encoding="utf-8")
-    return BlenderBuddyApp(config_path=cfg)
+    return ModelMetaApp(config_path=cfg)
 
 
 async def _open_specs(pilot, app):
@@ -178,7 +178,7 @@ async def test_spec_detail_opens_without_a_valid_config(tmp_path):
     cfg.write_text("this is not valid toml {{{")
     specs_store.create(tmp_path / "specs", "vehicle")
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.settings is None

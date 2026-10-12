@@ -2,7 +2,7 @@
 
 from textual.app import App
 
-from blender_buddy.tui.widgets.field_list import FieldList
+from model_meta.tui.widgets.field_list import FieldList
 
 
 class _Host(App):
