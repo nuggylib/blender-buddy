@@ -1,10 +1,10 @@
-"""Add-data modal tests: the root-field picker opened by `e` on a spec."""
+"""Edit-data modal tests: the root-field picker opened by `e` on a spec."""
 
 from textual.app import App
 from textual.widgets import OptionList
 
 from blender_buddy.specs import schema
-from blender_buddy.tui.screens.add_data_modal import FIELDS, AddDataModal
+from blender_buddy.tui.screens.edit_data_modal import FIELDS, EditDataModal
 
 
 class _Host(App):
@@ -13,7 +13,7 @@ class _Host(App):
         self.result = "unset"
 
     def on_mount(self):
-        self.push_screen(AddDataModal(), self._done)
+        self.push_screen(EditDataModal(), self._done)
 
     def _done(self, result):
         self.result = result
@@ -53,4 +53,4 @@ async def test_q_does_not_quit():
         await pilot.press("q")
         await pilot.pause()
         assert app.is_running
-        assert isinstance(app.screen, AddDataModal)
+        assert isinstance(app.screen, EditDataModal)

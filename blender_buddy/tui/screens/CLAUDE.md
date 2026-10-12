@@ -100,10 +100,10 @@ in the app (analogous to a route in a web app).
   hides every summary, shows the page-level `#spec-unreadable`, and
   `check_action` disables `e`. `e` (**Edit data**) runs a
   `@work(exclusive=True, group="edit-data")` worker:
-  `push_screen_wait(AddDataModal())`, then `"armature"` →
+  `push_screen_wait(EditDataModal())`, then `"armature"` →
   `ArmatureFormScreen(path)`. A new root field is one `FIELDS` entry in the
   picker, one route here, and one `FieldSummary` with its rows.
-- `add_data_modal.py` — `AddDataModal(ModalScreen[str | None])`: an
+- `edit_data_modal.py` — `EditDataModal(ModalScreen[str | None])`: an
   `OptionList` of spec root fields from `FIELDS` (keys are `schema.skeleton`
   root keys; only Armature today). Returns the key, or `None` on `escape`.
   Writes nothing. Own `Footer`, `q` shadowed — `NewSpecModal`'s shape.

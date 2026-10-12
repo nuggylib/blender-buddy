@@ -17,8 +17,8 @@ from blender_buddy.config.settings import Settings
 from blender_buddy.godot import discovery
 from blender_buddy.specs import schema
 from blender_buddy.specs import store as specs_store
-from blender_buddy.tui.screens.add_data_modal import AddDataModal
 from blender_buddy.tui.screens.armature_form import ArmatureFormScreen
+from blender_buddy.tui.screens.edit_data_modal import EditDataModal
 from blender_buddy.tui.screens.spec_detail import SpecDetailScreen
 from blender_buddy.tui.screens.specs import SpecsScreen
 from blender_buddy.tui.widgets.spec_row import SpecRow
@@ -268,7 +268,7 @@ async def test_edit_data_opens_the_armature_form_and_refreshes_on_return(
         assert await _wait_for(pilot, lambda: "Bones: 0" in _rows(app))
 
         await pilot.press("e")
-        assert await _wait_for(pilot, lambda: isinstance(app.screen, AddDataModal))
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, EditDataModal))
         await pilot.press("enter")
         assert await _wait_for(
             pilot, lambda: isinstance(app.screen, ArmatureFormScreen)
@@ -289,7 +289,7 @@ async def test_edit_data_escape_writes_nothing(tmp_path, monkeypatch):
     async with app.run_test() as pilot:
         await _open_spec(pilot, app)
         await pilot.press("e")
-        assert await _wait_for(pilot, lambda: isinstance(app.screen, AddDataModal))
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, EditDataModal))
         await pilot.press("escape")
         assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))
 
@@ -303,7 +303,7 @@ async def test_armature_name_set_on_the_form_shows_on_return(tmp_path, monkeypat
         assert await _wait_for(pilot, lambda: "Name: not set" in _rows(app))
 
         await pilot.press("e")
-        assert await _wait_for(pilot, lambda: isinstance(app.screen, AddDataModal))
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, EditDataModal))
         await pilot.press("enter")
         assert await _wait_for(
             pilot, lambda: isinstance(app.screen, ArmatureFormScreen)

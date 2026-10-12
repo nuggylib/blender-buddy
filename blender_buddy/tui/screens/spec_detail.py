@@ -2,7 +2,7 @@
 
 Summarizes each root field in a `FieldSummary` (Armature: name and bone count;
 the full bone list lives on the armature form). `e` (**Edit data**) opens
-`AddDataModal`, a picker of the spec's root fields, and routes the choice to
+`EditDataModal`, a picker of the spec's root fields, and routes the choice to
 that field's form. The spec is one small file, read inline (like
 `NewSpecModal`'s inline write) and re-read on every resume so it reflects
 whatever a form wrote.
@@ -21,8 +21,8 @@ from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
 
 from blender_buddy.specs import store
-from blender_buddy.tui.screens.add_data_modal import AddDataModal
 from blender_buddy.tui.screens.armature_form import ArmatureFormScreen
+from blender_buddy.tui.screens.edit_data_modal import EditDataModal
 from blender_buddy.tui.widgets.field_summary import FieldSummary
 
 _UNREADABLE = "This spec can't be read — see the fix steps on the Specs page."
@@ -83,7 +83,7 @@ class SpecDetailScreen(Screen):
     @work(exclusive=True, group="edit-data")
     async def _edit_data(self) -> None:
         """Pick a root field, then open its form. Armature is the only route."""
-        field = await self.app.push_screen_wait(AddDataModal())
+        field = await self.app.push_screen_wait(EditDataModal())
         if field == "armature":
             self.app.push_screen(ArmatureFormScreen(self.path))
 
