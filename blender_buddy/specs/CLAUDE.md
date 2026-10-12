@@ -29,22 +29,29 @@ disk. **No Textual, no UI.**
   values, free the most segments that still vary, and are kept only if they
   resolve to exactly the intended pairs and keep `is_valid`. Anything else is
   written as **exact names**. Other syntaxes (`*`, regex) just match literally.
+- `mesh_roles.py` — pure `mesh_roles` logic. `validate_name` (trimmed,
+  non-empty, unique by exact compare) and `validate_vtx_grp`: a `vtx_grp` is a
+  `parenting`-syntax pattern (63-byte limit, no empty segments) that must
+  `matches` at least one required bone. Every `{n}` is free for now.
 - `store.py` — the filesystem: `create(specs_dir, model_type)` writes a new
   skeleton (raising `FileExistsError` rather than overwriting),
   `list_specs(specs_dir)` classifies every spec as `OK` / `UNREADABLE` /
   `MISMATCHED`, and `count(specs_dir)` tallies them without parsing any.
   `read(path)` returns one document, raising `OSError` / `ValueError` when it
   is unreadable, not an object, or has a malformed `object_name` /
-  `required_bones` / `bone_name_inverses` / `parenting` (`armature_name()` /
-  `required_bones()` / `bone_name_inverses()` / `parenting_map()` default them
-  for older specs). `update_armature(path, add_bones=, set_inverses=,
+  `required_bones` / `bone_name_inverses` / `parenting`, or a `mesh_roles` that
+  isn't a map of objects with string `vtx_grp`s (`armature_name()` /
+  `required_bones()` / `bone_name_inverses()` / `parenting_map()` /
+  `mesh_roles()` default them for older specs). `update_armature(path, add_bones=, set_inverses=,
   drop_inverses=, object_name=, add_parenting=)` re-reads, patches **only**
   those keys (bones deduped, drops before sets, `object_name=None` leaves the
   name alone, parenting merged via `parenting.merge`), and writes
   atomically — hand edits to anything else survive.
+  `add_mesh_role(path, name, vtx_grp)` re-reads, raises `ValueError` on a
+  taken name, and writes only `mesh_roles[name] = {"vtx_grp": …}` the same way.
 
 ## Updates replace atomically; `create` uses O_EXCL
-`update_armature` writes a sibling `.tmp` and `os.replace`s it, like
+`update_armature` and `add_mesh_role` write a sibling `.tmp` and `os.replace`s it, like
 `config/store.py`: replacing *is* the point of an update, and a crash never
 leaves a half-written spec. `create` deliberately does not: a replace would
 *overwrite* the existing file, defeating
