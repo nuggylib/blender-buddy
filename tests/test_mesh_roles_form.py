@@ -4,7 +4,7 @@ import json
 
 from textual.widgets import Input, SelectionList, Static
 
-from model_meta.app import BlenderBuddyApp
+from model_meta.app import ModelMetaApp
 from model_meta.config import store as config_store
 from model_meta.config.settings import Settings
 from model_meta.godot import discovery
@@ -37,7 +37,7 @@ def _app(tmp_path, monkeypatch):
             godot_projects_root=str(tmp_path / "godot"),
         ),
     )
-    return BlenderBuddyApp(config_path=cfg)
+    return ModelMetaApp(config_path=cfg)
 
 
 def _spec(tmp_path, bones=BONES):

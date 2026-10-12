@@ -17,7 +17,7 @@ from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
 
 if TYPE_CHECKING:
-    from model_meta.app import BlenderBuddyApp
+    from model_meta.app import ModelMetaApp
 
 
 class BlenderDetailScreen(Screen):
@@ -29,7 +29,7 @@ class BlenderDetailScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        settings = cast("BlenderBuddyApp", self.app).settings
+        settings = cast("ModelMetaApp", self.app).settings
         yield Vertical(
             Static("Blender", classes="section-title"),
             Static(

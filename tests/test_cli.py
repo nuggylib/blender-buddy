@@ -28,7 +28,7 @@ async def test_check_mounts_headlessly_and_succeeds():
 
 
 class _FakeApp:
-    """Stand-in for BlenderBuddyApp so we can assert wiring without a TTY."""
+    """Stand-in for ModelMetaApp so we can assert wiring without a TTY."""
 
     def __init__(self, force_setup: bool = False) -> None:
         self.force_setup = force_setup
@@ -42,7 +42,7 @@ def test_setup_flag_launches_app_in_setup_mode(monkeypatch):
     created = {}
     monkeypatch.setattr(
         model_meta.app,
-        "BlenderBuddyApp",
+        "ModelMetaApp",
         lambda **kwargs: created.setdefault("app", _FakeApp(**kwargs)),
     )
     main(["--setup"])
@@ -54,7 +54,7 @@ def test_bare_invocation_does_not_force_setup(monkeypatch):
     created = {}
     monkeypatch.setattr(
         model_meta.app,
-        "BlenderBuddyApp",
+        "ModelMetaApp",
         lambda **kwargs: created.setdefault("app", _FakeApp(**kwargs)),
     )
     main([])

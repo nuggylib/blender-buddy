@@ -137,7 +137,7 @@ uv run ruff check .
 uv run ruff format .
 ```
 
-During UI development, `uv run textual run --dev model_meta.app:BlenderBuddyApp`
+During UI development, `uv run textual run --dev model_meta.app:ModelMetaApp`
 enables live CSS editing, and `uv run textual console` (in a second terminal)
 captures log output.
 

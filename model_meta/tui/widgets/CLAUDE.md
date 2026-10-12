@@ -10,7 +10,7 @@ in the screen that owns it.
   can_focus_children=False)`, one focusable section of a hub screen. Holds
   arbitrary children (the dashboard passes `Static` rows), binds `enter` to an
   action that posts `SectionCard.Opened(target)`, and takes `target` — a name
-  registered in `BlenderBuddyApp.SCREENS`, not a screen instance.
+  registered in `ModelMetaApp.SCREENS`, not a screen instance.
   `can_focus_children=False` is load-bearing: it keeps the hub's focus chain at
   exactly **one stop per section**, so a `Button` added inside a card later
   cannot become a stop of its own and break the "arrow keys step through

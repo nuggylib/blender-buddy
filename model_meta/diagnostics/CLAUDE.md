@@ -12,9 +12,9 @@ actually launches. These are release-pipeline concerns, deliberately kept out of
 
 ## Conventions
 - `app.py`'s `main()` dispatches `blender-buddy --check` here via a lazy import
-  (avoids an import cycle: this module imports `BlenderBuddyApp` lazily too).
+  (avoids an import cycle: this module imports `ModelMetaApp` lazily too).
 - Knobs that belong to a check (timeouts, sizes) live with the check, not on
-  `BlenderBuddyApp`.
+  `ModelMetaApp`.
 - Anything here must be awaitable directly from tests under
   `asyncio_mode = "auto"` — don't wrap coroutines in `asyncio.run()` at module
   or function boundaries the tests call into.

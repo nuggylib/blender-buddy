@@ -34,7 +34,7 @@ def _resource_path(name: str) -> Path:
     return Path(__file__).parent / name
 
 
-class BlenderBuddyApp(App):
+class ModelMetaApp(App):
     """The Blender Buddy TUI.
 
     This is the spine the product hangs off of: future work adds reactive
@@ -204,7 +204,7 @@ def main(argv: list[str] | None = None) -> None:
         asyncio.run(run_headless_check())
         return
 
-    BlenderBuddyApp(force_setup=args.setup).run()
+    ModelMetaApp(force_setup=args.setup).run()
 
 
 if __name__ == "__main__":

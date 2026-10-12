@@ -5,7 +5,7 @@ Blender Buddy and is packaged together into the published binary (flat layout �
 this package sits at the repository root, not under `src/`).
 
 ## Files
-- `app.py` — `BlenderBuddyApp` (the Textual `App`) and the `main()` entry point
+- `app.py` — `ModelMetaApp` (the Textual `App`) and the `main()` entry point
   used by both the `blender-buddy` console script and `python -m model_meta`.
   `main(argv=None)` takes injectable args (unit-testable without `subprocess`)
   and exposes `--version`, `--check`, and `--setup` (re-run the setup wizard);
@@ -13,7 +13,7 @@ this package sits at the repository root, not under `src/`).
   `_resource_path()` resolves bundled data files (e.g. `app.tcss`) both frozen
   (`sys._MEIPASS`) and from source — `CSS_PATH` uses it so the packaged binary
   finds its stylesheet.
-  `BlenderBuddyApp(config_path=..., force_setup=...)`: `on_mount` routes off the
+  `ModelMetaApp(config_path=..., force_setup=...)`: `on_mount` routes off the
   config file — **valid** → dashboard, **absent** → first-time setup wizard
   (`_first_run`, saved only on completion), **corrupt** → dashboard + a
   non-blocking recovery notice (never auto-overwritten). `force_setup` (the

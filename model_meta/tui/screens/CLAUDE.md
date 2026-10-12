@@ -204,7 +204,7 @@ in the app (analogous to a route in a web app).
 - One screen per file, named `<Name>Screen`. The value-returning screens are the
   deliberate exceptions — `SetupWizard` and `NewSpecModal` are flows that return
   a result, not landing views, and are named for what they are.
-- Register landing screens in `BlenderBuddyApp.SCREENS` and navigate with
+- Register landing screens in `ModelMetaApp.SCREENS` and navigate with
   `push_screen` / `pop_screen`; push value-returning screens with
   `push_screen_wait` from inside a `@work` worker.
 - **Keep slow/blocking work out of the event loop and out of the screen.** No

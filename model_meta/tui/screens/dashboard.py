@@ -41,7 +41,7 @@ from model_meta.tui.screens.specs import plural_specs
 from model_meta.tui.widgets.section_card import SectionCard
 
 if TYPE_CHECKING:
-    from model_meta.app import BlenderBuddyApp
+    from model_meta.app import ModelMetaApp
     from model_meta.config.settings import Settings
 
 _FOUND = "[green]✓ found[/]"
@@ -77,7 +77,7 @@ class DashboardScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        settings = cast("BlenderBuddyApp", self.app).settings
+        settings = cast("ModelMetaApp", self.app).settings
         if settings is None:
             yield Static(
                 "Setup incomplete or unreadable — press 's' to run setup.",
@@ -185,7 +185,7 @@ class DashboardScreen(Screen):
         A single-directory glob with no parsing — the same class of work as the
         `is_dir()` the other cards do inline, so it needs no worker.
         """
-        count = specs_store.count(cast("BlenderBuddyApp", self.app).specs_dir)
+        count = specs_store.count(cast("ModelMetaApp", self.app).specs_dir)
         if not count:
             return "No specs yet — open to create one."
         return plural_specs(count)
@@ -247,7 +247,7 @@ class DashboardScreen(Screen):
         projects is a valid `0`, and any failure degrades to "count unavailable"
         rather than crashing the screen.
         """
-        settings = cast("BlenderBuddyApp", self.app).settings
+        settings = cast("ModelMetaApp", self.app).settings
         if settings is None:
             return
         root = Path(settings.godot_projects_root).expanduser()

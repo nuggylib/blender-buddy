@@ -28,7 +28,7 @@ from model_meta.config import paths
 from model_meta.specs import naming, store
 
 if TYPE_CHECKING:
-    from model_meta.app import BlenderBuddyApp
+    from model_meta.app import ModelMetaApp
 
 
 class NewSpecModal(ModalScreen[Path | None]):
@@ -157,7 +157,7 @@ class NewSpecModal(ModalScreen[Path | None]):
             self._status(error)
             return
         model_type = naming.normalize(raw)
-        specs_dir = cast("BlenderBuddyApp", self.app).specs_dir
+        specs_dir = cast("ModelMetaApp", self.app).specs_dir
         try:
             path = store.create(specs_dir, model_type)
         except FileExistsError:

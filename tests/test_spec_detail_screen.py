@@ -12,7 +12,7 @@ import json
 
 from textual.widgets import Static
 
-from model_meta.app import BlenderBuddyApp
+from model_meta.app import ModelMetaApp
 from model_meta.config import store as config_store
 from model_meta.config.settings import Settings
 from model_meta.godot import discovery
@@ -66,7 +66,7 @@ def _app(tmp_path, monkeypatch, specs=(), raw=()):
         directory = tmp_path / "specs"
         directory.mkdir(parents=True, exist_ok=True)
         (directory / f"{name}.json").write_text(payload, encoding="utf-8")
-    return BlenderBuddyApp(config_path=cfg)
+    return ModelMetaApp(config_path=cfg)
 
 
 async def _open_specs(pilot, app):
@@ -178,7 +178,7 @@ async def test_spec_detail_opens_without_a_valid_config(tmp_path):
     cfg.write_text("this is not valid toml {{{")
     specs_store.create(tmp_path / "specs", "vehicle")
 
-    app = BlenderBuddyApp(config_path=cfg)
+    app = ModelMetaApp(config_path=cfg)
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.settings is None

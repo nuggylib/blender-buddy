@@ -10,7 +10,7 @@ from pathlib import Path
 
 from textual.widgets import Static
 
-from model_meta.app import BlenderBuddyApp
+from model_meta.app import ModelMetaApp
 from model_meta.config import store
 from model_meta.config.settings import Settings
 from model_meta.godot import discovery as godot_discovery
@@ -63,7 +63,7 @@ def _app(tmp_path, monkeypatch, directories, blend_files=None):
             godot_projects_root=str(godot),
         ),
     )
-    return BlenderBuddyApp(config_path=cfg)
+    return ModelMetaApp(config_path=cfg)
 
 
 async def _open_models(pilot, app):

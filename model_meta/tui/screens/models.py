@@ -30,7 +30,7 @@ from model_meta.tui.widgets.fix_panel import FixPanel
 from model_meta.tui.widgets.model_row import ModelRow
 
 if TYPE_CHECKING:
-    from model_meta.app import BlenderBuddyApp
+    from model_meta.app import ModelMetaApp
     from model_meta.config.settings import Settings
 
 _SCANNING = "Scanning…"
@@ -102,7 +102,7 @@ class ModelsScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        settings = cast("BlenderBuddyApp", self.app).settings
+        settings = cast("ModelMetaApp", self.app).settings
         # can_focus=False keeps the scroller out of the row focus chain.
         yield VerticalScroll(
             Static("Models", classes="section-title"),
@@ -157,7 +157,7 @@ class ModelsScreen(Screen):
 
         Sequential rather than gathered, to keep the output ordered.
         """
-        settings = cast("BlenderBuddyApp", self.app).settings
+        settings = cast("ModelMetaApp", self.app).settings
         if settings is None:
             return
         total = 0

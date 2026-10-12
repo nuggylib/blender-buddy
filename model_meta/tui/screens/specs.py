@@ -37,7 +37,7 @@ from model_meta.tui.widgets.fix_panel import FixPanel
 from model_meta.tui.widgets.spec_row import SpecRow
 
 if TYPE_CHECKING:
-    from model_meta.app import BlenderBuddyApp
+    from model_meta.app import ModelMetaApp
 
 _LOADING = "Loading…"
 _EMPTY = "No specs yet — press `n` to create one."
@@ -138,7 +138,7 @@ class SpecsScreen(Screen):
     @work(exclusive=True, group="specs-load")
     async def _load_specs(self) -> None:
         """List the specs directory off the event loop (it parses JSON)."""
-        specs_dir = cast("BlenderBuddyApp", self.app).specs_dir
+        specs_dir = cast("ModelMetaApp", self.app).specs_dir
         entries = await asyncio.to_thread(store.list_specs, specs_dir)
 
         try:
