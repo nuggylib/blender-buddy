@@ -70,8 +70,12 @@ def _status(app):
     return str(app.screen.query_one("#bone-status", Static).render())
 
 
+def _rows(app, list_id):
+    return app.screen.query(f"#{list_id} .field-list-row")
+
+
 def _listed(app):
-    return [str(row.render()) for row in app.screen.query(".bone-row")]
+    return [str(row.render()) for row in _rows(app, "bone-list")]
 
 
 def _variants(app):
@@ -91,7 +95,7 @@ async def test_form_opens_focused_on_the_name_field(tmp_path, monkeypatch):
     async with app.run_test() as pilot:
         await _open(pilot, app, path)
         assert _focused_id(app) == "bone-name"
-        assert app.screen.query_one("#bone-list-empty")
+        assert app.screen.query_one("#bone-list .field-list-empty")
 
 
 async def test_form_lists_every_bone_already_in_the_spec(tmp_path, monkeypatch):
@@ -454,7 +458,7 @@ def _rig(tmp_path, parenting=None):
 
 
 async def _choose(pilot, app, parents):
-    await pilot.press("tab")
+    await pilot.press("tab", "tab")
     assert _focused_id(app) == "parent-bones"
     checklist = app.screen.query_one("#parent-bones", SelectionList)
     for parent in parents:
@@ -478,8 +482,8 @@ def _children(app):
 
 def _parenting_rows(app):
     return [
-        ("  " if row.has_class("parenting-child") else "") + str(row.render())
-        for row in app.screen.query(".parenting-row")
+        ("  " if row.has_class("field-list-child") else "") + str(row.render())
+        for row in _rows(app, "parenting-list")
     ]
 
 
@@ -490,7 +494,7 @@ async def test_parenting_section_empty_states(tmp_path, monkeypatch):
         await _open(pilot, app, path)
         assert not app.screen.query_one("#parent-picker").display
         assert app.screen.query_one("#parent-bones-empty").display
-        assert app.screen.query_one("#parenting-list-empty")
+        assert app.screen.query_one("#parenting-list .field-list-empty")
 
 
 async def test_checked_parents_end_to_end(tmp_path, monkeypatch):

@@ -23,7 +23,7 @@ from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import (
     Button,
@@ -35,6 +35,7 @@ from textual.widgets import (
 )
 
 from blender_buddy.specs import bones, parenting, store
+from blender_buddy.tui.widgets.field_list import FieldList
 
 _EMPTY = "No required bones yet."
 _NO_PARENTING = "No parenting yet."
@@ -113,14 +114,9 @@ class ArmatureFormScreen(Screen):
         height: auto;
         max-height: 8;
     }
-    ArmatureFormScreen #bone-list-title, ArmatureFormScreen #parenting-list-title {
-        margin-top: 1;
-    }
     ArmatureFormScreen #bone-list, ArmatureFormScreen #parenting-list {
         height: 1fr;
-    }
-    ArmatureFormScreen .parenting-child {
-        padding-left: 2;
+        margin-top: 1;
     }
     """
 
@@ -146,10 +142,9 @@ class ArmatureFormScreen(Screen):
                 yield Static("Bone name", classes="config-detail")
                 yield Input(id="bone-name")
                 yield Vertical(id="bone-question")
-                yield Static(
-                    "Required bones", id="bone-list-title", classes="section-title"
+                yield FieldList(
+                    "Required bones", _EMPTY, id="bone-list", classes="field-list"
                 )
-                yield VerticalScroll(id="bone-list", can_focus=False)
             with Vertical(id="parenting-column"):
                 with Vertical(id="parent-picker"):
                     yield Static("Parent bones", classes="config-detail")
@@ -165,10 +160,12 @@ class ArmatureFormScreen(Screen):
                     markup=False,
                 )
                 yield Vertical(id="parent-question")
-                yield Static(
-                    "Parenting", id="parenting-list-title", classes="section-title"
+                yield FieldList(
+                    "Parenting",
+                    _NO_PARENTING,
+                    id="parenting-list",
+                    classes="field-list",
                 )
-                yield VerticalScroll(id="parenting-list", can_focus=False)
         yield Footer()
 
     async def on_mount(self) -> None:
@@ -178,7 +175,7 @@ class ArmatureFormScreen(Screen):
             pass  # `_show_bones` reports it
         self.query_one("#armature-name", Input).value = self._saved_name
         self.query_one("#bone-name", Input).focus()
-        await self._show_bones()
+        self._show_bones()
 
     # -- bindings ----------------------------------------------------------
 
@@ -362,7 +359,7 @@ class ArmatureFormScreen(Screen):
             return
         self.query_one("#parent-bones", SelectionList).deselect_all()
         await self._drop_children()
-        await self._show_bones()
+        self._show_bones()
         self._status("Parenting saved.")
 
     def _infer(
@@ -428,7 +425,7 @@ class ArmatureFormScreen(Screen):
         name = self.query_one("#bone-name", Input)
         name.value = ""
         name.focus()
-        await self._show_bones()
+        self._show_bones()
         return True
 
     def _write(self, **changes) -> bool:
@@ -490,21 +487,20 @@ class ArmatureFormScreen(Screen):
         )
         return any(section in focused.ancestors for section in sections)
 
-    async def _show_bones(self) -> None:
+    def _show_bones(self) -> None:
         try:
             document = store.read(self.path)
         except (OSError, ValueError) as error:
             self._status(f"Could not read the spec: {_reason(error)}")
             return
         required = store.required_bones(document)
-        rows = [
-            Static(name, classes="bone-row", markup=False) for name in required
-        ] or [Static(_EMPTY, id="bone-list-empty", classes="config-detail")]
-        bone_list = self.query_one("#bone-list", VerticalScroll)
-        await bone_list.remove_children()
-        await bone_list.mount_all(rows)
+        self.query_one("#bone-list", FieldList).lines = tuple(
+            (name, 0) for name in required
+        )
         self._show_parents(required)
-        await self._show_parenting(store.parenting_map(document))
+        self.query_one("#parenting-list", FieldList).lines = tuple(
+            _entry_lines(store.parenting_map(document))
+        )
 
     def _show_parents(self, required: list[str]) -> None:
         self._parents = [
@@ -525,19 +521,6 @@ class ArmatureFormScreen(Screen):
         self.query_one("#parent-bones-empty").display = not required
         skipped = len(self._parents) != len(required)
         self.query_one("#parent-bones-skipped").display = skipped
-
-    async def _show_parenting(self, entries: dict[str, list[str]]) -> None:
-        rows = [
-            Static(
-                text,
-                classes="parenting-row parenting-child" if depth else "parenting-row",
-                markup=False,
-            )
-            for text, depth in _entry_lines(entries)
-        ] or [Static(_NO_PARENTING, id="parenting-list-empty", classes="config-detail")]
-        parenting_list = self.query_one("#parenting-list", VerticalScroll)
-        await parenting_list.remove_children()
-        await parenting_list.mount_all(rows)
 
     def _status(self, text: str) -> None:
         self.query_one("#bone-status", Static).update(text)
