@@ -98,8 +98,8 @@ in the app (analogous to a route in a web app).
   file, read inline via `specs.store.read` and **re-read on
   `on_screen_resume`** so it reflects what a form wrote. A spec `read` rejects
   hides every summary, shows the page-level `#spec-unreadable`, and
-  `check_action` disables `a`. `a` (**Add data**) runs a
-  `@work(exclusive=True, group="add-data")` worker:
+  `check_action` disables `e`. `e` (**Edit data**) runs a
+  `@work(exclusive=True, group="edit-data")` worker:
   `push_screen_wait(AddDataModal())`, then `"armature"` →
   `ArmatureFormScreen(path)`. A new root field is one `FIELDS` entry in the
   picker, one route here, and one `FieldSummary` with its rows.

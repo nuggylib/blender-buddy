@@ -1,4 +1,4 @@
-"""Add-data modal tests: the root-field picker opened by `a` on a spec."""
+"""Add-data modal tests: the root-field picker opened by `e` on a spec."""
 
 from textual.app import App
 from textual.widgets import OptionList

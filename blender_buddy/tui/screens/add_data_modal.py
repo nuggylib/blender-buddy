@@ -11,7 +11,7 @@ from textual.widgets import Footer, OptionList, Static
 from textual.widgets.option_list import Option
 
 # (spec root key, label). A new root field is one entry here plus one route in
-# `SpecDetailScreen._add_data`.
+# `SpecDetailScreen._edit_data`.
 FIELDS = (("armature", "Armature"),)
 
 
