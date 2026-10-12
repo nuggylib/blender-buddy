@@ -126,13 +126,15 @@ in the app (analogous to a route in a web app).
   write nothing. User-typed names render with `markup=False`
   (`rich.markup.escape` misses uppercase tags like `[L]`).
   **Two columns** under the name/status: bones (field, question, list) on the
-  left, parenting on the right. **Parenting:** `#parent-bones` lists
-  `required_bones` (one Tab from an idle `#bone-name`); Enter hides it and
-  mounts an unchecked `#child-bones` of eligible bones (not the parent, not
-  already parented, not its ancestors), a `#parenting-preview`, and **Add**.
-  Preview and Add both call `specs.parenting.infer` on a fresh read, so the
-  preview is what gets written. `escape` there drops the pick (nothing written);
-  on an idle `#parent-bones` it leaves. `#parenting-list` shows `key → children`.
+  left, parenting on the right. **Parenting:** `#parent-bones` is a checklist
+  of `required_bones` (one Tab from an idle `#bone-name`); **Choose children**
+  hides `#parent-picker` and mounts an unchecked `#child-bones` of eligible
+  bones (not a checked parent, not already parented, not an ancestor), a
+  `#parenting-preview`, and **Add**. Preview and Add both call
+  `specs.parenting.infer` on a fresh read, so the preview is what gets written;
+  an unpairable child shows its reason in both. `escape` steps back: children →
+  parents (checks kept) → clears checks → leaves. `#parenting-list` shows
+  `key → children`.
   Never name an attribute `_parent` here — it shadows Textual's `DOMNode._parent`.
 - `blender_detail.py`, `godot_detail.py` — the other two detail screens
   (`blender-detail`, `godot-detail` in `SCREENS`). Still **placeholders**: they

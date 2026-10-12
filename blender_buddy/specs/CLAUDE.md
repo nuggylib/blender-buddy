@@ -22,11 +22,13 @@ disk. **No Textual, no UI.**
   literal). Key placeholders are **bound** (children reuse the value); child-only
   ones are **free**. `match`, `pairs`/`resolve` (against `required_bones`),
   `ancestors`, `is_valid` (≤1 parent, no cycles), `merge` (append-dedupe per
-  key). `infer(parent, children, …)` binds variable segments the parent and
-  child share by value (so mirrors are covered), tries freeing the child's
-  others, then bound-only, and falls back to **exact names** whenever a pattern
-  would match an unchecked bone or break `is_valid`. Other syntaxes (`*`,
-  regex) just match literally.
+  key). `infer(parents, children, …)` is **what you check is what you get**:
+  each child pairs with the one checked parent whose distinguishing segments it
+  holds (else `ValueError`); the key placeholders the positions where checked
+  parents differ (and must match exactly them); child patterns bind those
+  values, free the most segments that still vary, and are kept only if they
+  resolve to exactly the intended pairs and keep `is_valid`. Anything else is
+  written as **exact names**. Other syntaxes (`*`, regex) just match literally.
 - `store.py` — the filesystem: `create(specs_dir, model_type)` writes a new
   skeleton (raising `FileExistsError` rather than overwriting),
   `list_specs(specs_dir)` classifies every spec as `OK` / `UNREADABLE` /
