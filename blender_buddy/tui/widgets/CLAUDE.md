@@ -43,8 +43,11 @@ in the screen that owns it.
     variable height on the side that can report it.
 
 - `field_summary.py` — `FieldSummary(Vertical)`, one spec root field on the
-  spec detail screen: `title` becomes the `border_title`, and `rows` (a tuple
-  of `(label, value)`) render as `label: value` lines. Display-only — no
+  spec detail screen: `title` becomes the `border_title`, `rows` (a tuple
+  of `(label, value)`) render as `label: value` lines, and `items` (a tuple of
+  strings) are numbered `1). ` (right-aligned) and fill side-by-side
+  `.field-column`s of `COLUMN_LENGTH` (10), top to bottom; `empty` shows when
+  both are empty. Display-only — no
   focus, bindings, or messages. It earns its place by repeating once per root
   field on the same screen. `rows` is a `recompose=True` reactive for
   `FixPanel`'s reason, and rows use `markup=False` because values come from

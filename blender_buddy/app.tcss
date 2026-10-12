@@ -79,6 +79,25 @@ SpecDetailScreen .field-summary {
     border-title-color: $accent;
 }
 
+/* Item lists (e.g. mesh role names) wrap into side-by-side columns. */
+SpecDetailScreen .field-columns {
+    height: auto;
+}
+
+SpecDetailScreen .field-column {
+    width: auto;
+    height: auto;
+    margin-right: 4;
+}
+
+SpecDetailScreen .field-item {
+    width: auto;
+}
+
+SpecDetailScreen .field-empty {
+    color: $text-muted;
+}
+
 /* -- Specs screen -------------------------------------------------------- */
 
 SpecsScreen #specs-summary,
@@ -181,19 +200,19 @@ ModelsScreen #fix-panel {
     border-top: solid $panel;
 }
 
-/* -- armature form ------------------------------------------------------- */
+/* -- armature and mesh-roles forms --------------------------------------- */
 
 /* One box per field (FieldList); the border turns accent when it's selected. */
-ArmatureFormScreen .field-list {
+ArmatureFormScreen .field-list, MeshRolesFormScreen .field-list {
     padding: 0 1;
     border: round $panel;
     border-title-color: $accent;
 }
 
-ArmatureFormScreen .field-list:focus {
+ArmatureFormScreen .field-list:focus, MeshRolesFormScreen .field-list:focus {
     border: round $accent;
 }
 
-ArmatureFormScreen .field-list-child {
+ArmatureFormScreen .field-list-child, MeshRolesFormScreen .field-list-child {
     padding-left: 2;
 }

@@ -20,32 +20,42 @@ disk. **No Textual, no UI.**
 - `parenting.py` — pure `armature.parenting` logic. A pattern is a bone name
   whose segments may be `{n}`, each matching one whole segment (base always
   literal). Key placeholders are **bound** (children reuse the value); child-only
-  ones are **free**. `match`, `pairs`/`resolve` (against `required_bones`),
-  `ancestors`, `is_valid` (≤1 parent, no cycles), `merge` (append-dedupe per
-  key). `infer(parents, children, …)` is **what you check is what you get**:
+  ones are **free**. `match`, `generalize` (`{n}` wherever names differ),
+  `pairs`/`resolve` (against `required_bones`), `ancestors`, `is_valid` (≤1
+  parent, no cycles), `merge` (append-dedupe per key).
+  `infer(parents, children, …)` is **what you check is what you get**:
   each child pairs with the one checked parent whose distinguishing segments it
   holds (else `ValueError`); the key placeholders the positions where checked
   parents differ (and must match exactly them); child patterns bind those
   values, free the most segments that still vary, and are kept only if they
   resolve to exactly the intended pairs and keep `is_valid`. Anything else is
   written as **exact names**. Other syntaxes (`*`, regex) just match literally.
+- `mesh_roles.py` — pure `mesh_roles` logic. `validate_name` (trimmed,
+  non-empty, unique by exact compare) and `infer_vtx_grp(checked, required)`:
+  the `parenting`-syntax pattern (`generalize`, 63-byte limit) that `matches`
+  **exactly** the checked bones, else `ValueError` naming why (incl. any extra
+  bones it would match). Every `{n}` is free for now.
 - `store.py` — the filesystem: `create(specs_dir, model_type)` writes a new
   skeleton (raising `FileExistsError` rather than overwriting),
   `list_specs(specs_dir)` classifies every spec as `OK` / `UNREADABLE` /
   `MISMATCHED`, and `count(specs_dir)` tallies them without parsing any.
   `read(path)` returns one document, raising `OSError` / `ValueError` when it
   is unreadable, not an object, or has a malformed `object_name` /
-  `required_bones` / `bone_name_inverses` / `parenting` (`armature_name()` /
-  `required_bones()` / `bone_name_inverses()` / `parenting_map()` default them
-  for older specs). `update_armature(path, add_bones=, set_inverses=,
-  drop_inverses=, object_name=, add_parenting=)` re-reads, patches **only**
+  `required_bones` / `bone_name_inverses` / `parenting`, or a `mesh_roles` that
+  isn't a map of objects with string `vtx_grp`s (`armature_name()` /
+  `required_bones()` / `bone_name_inverses()` / `parenting_map()` /
+  `mesh_roles()` default them for older specs). `update_armature(path,
+  add_bones=, set_inverses=, drop_inverses=, object_name=, add_parenting=)`
+  re-reads, patches **only**
   those keys (bones deduped, drops before sets, `object_name=None` leaves the
   name alone, parenting merged via `parenting.merge`), and writes
   atomically — hand edits to anything else survive.
+  `add_mesh_role(path, name, vtx_grp)` re-reads, raises `ValueError` on a
+  taken name, and writes only `mesh_roles[name] = {"vtx_grp": …}` the same way.
 
 ## Updates replace atomically; `create` uses O_EXCL
-`update_armature` writes a sibling `.tmp` and `os.replace`s it, like
-`config/store.py`: replacing *is* the point of an update, and a crash never
+`update_armature` and `add_mesh_role` write a sibling `.tmp` and `os.replace`
+it, like `config/store.py`: replacing *is* the point of an update, and a crash never
 leaves a half-written spec. `create` deliberately does not: a replace would
 *overwrite* the existing file, defeating
 the one guarantee this function exists to make. `open(path, "x")` makes "reject

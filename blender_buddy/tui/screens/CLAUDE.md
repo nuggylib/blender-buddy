@@ -93,19 +93,21 @@ in the app (analogous to a route in a web app).
 - `spec_detail.py` — `SpecDetailScreen(model_type, path)`, the per-spec detail
   view opened by `enter` on a `SpecRow`. Not in `SCREENS` (see Conventions).
   Summarizes each root field in a non-focusable `FieldSummary` box — Armature
-  shows `Name` (`object_name`, or `not set`) and `Bones` (a count). It never
-  lists bones; the full list lives on `armature_form.py`. The spec is one small
+  shows `Name` (`object_name`, or `not set`) and `Bones` (a count); Mesh roles
+  lists the role names (`items`, numbered, columns of 10; `No mesh roles yet.` when
+  none). It never lists bones or a role's fields; those live on the forms. The spec is one small
   file, read inline via `specs.store.read` and **re-read on
   `on_screen_resume`** so it reflects what a form wrote. A spec `read` rejects
   hides every summary, shows the page-level `#spec-unreadable`, and
   `check_action` disables `e`. `e` (**Edit data**) runs a
   `@work(exclusive=True, group="edit-data")` worker:
   `push_screen_wait(EditDataModal())`, then `"armature"` →
-  `ArmatureFormScreen(path)`. A new root field is one `FIELDS` entry in the
-  picker, one route here, and one `FieldSummary` with its rows.
+  `ArmatureFormScreen(path)` and `"mesh_roles"` → `MeshRolesFormScreen(path)`.
+  A new root field is one `FIELDS` entry in the picker, one route here, and one
+  `FieldSummary` with its rows.
 - `edit_data_modal.py` — `EditDataModal(ModalScreen[str | None])`: an
   `OptionList` of spec root fields from `FIELDS` (keys are `schema.skeleton`
-  root keys; only Armature today). Returns the key, or `None` on `escape`.
+  root keys: Armature, Mesh roles). Returns the key, or `None` on `escape`.
   Writes nothing. Own `Footer`, `q` shadowed — `NewSpecModal`'s shape.
 - `armature_form.py` — `ArmatureFormScreen(path)`, a full `Screen` the user
   stays on to name the armature and add bone after bone. **Read-only until
@@ -143,6 +145,17 @@ in the app (analogous to a route in a web app).
   `escape` leaves. `#parenting-list` and the preview are nested: each key,
   then its child patterns indented beneath it.
   Never name an attribute `_parent` here — it shadows Textual's `DOMNode._parent`.
+- `mesh_roles_form.py` — `MeshRolesFormScreen(path)`, the stay-on form for
+  adding mesh roles. Read-only `#role-list` (a `FieldList`: each role, its
+  `vtx_grp` indented) until Enter or a click opens `#role-editor`; with no
+  `required_bones` it opens nothing and says why in `#role-status`. Enter in
+  `#role-name` validates the name and reveals `#role-bones-question`: a
+  `#role-bones` checklist refilled from a fresh read, a live `#role-preview` of
+  `mesh_roles.infer_vtx_grp` (or why none fits), and **Add**, which infers on a
+  fresh read and writes via `add_mesh_role`, then returns to an empty
+  `#role-name`. No typed pattern. `escape`: hide the bones question → clear the
+  name → close the editor → leave. Failures keep the checks and write nothing.
+  `q` shadowed.
 - `blender_detail.py`, `godot_detail.py` — the other two detail screens
   (`blender-detail`, `godot-detail` in `SCREENS`). Still **placeholders**: they
   render the configured value they own plus a `#placeholder-note`. They exist so
@@ -213,7 +226,8 @@ in the app (analogous to a route in a web app).
   config-derived pages when it is, so they carry no `None` fallback. `specs.py`
   reads no settings at all — only `self.app.specs_dir` — so it works in every
   config state.
-  `spec_detail.py` and `armature_form.py` are the named exemptions:
+  `spec_detail.py`, `armature_form.py` and `mesh_roles_form.py` are the named
+  exemptions:
   they are *per spec*, with no app-level "current spec" to read, so they take
   the spec as a constructor argument and are **not** registered in `SCREENS` — the
   `SetupWizard` / `NewSpecModal` shape, minus the return value. Adding a

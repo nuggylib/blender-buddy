@@ -104,6 +104,24 @@ def merge(
     return merged
 
 
+def generalize(names: Sequence[str]) -> str | None:
+    """`names` with `{n}` wherever they differ, or `None` if bases or lengths do."""
+    split = [name.split(".") for name in names]
+    if len({len(parts) for parts in split}) != 1:
+        return None
+    parts = []
+    count = 0
+    for values in zip(*split, strict=True):
+        if len(set(values)) == 1:
+            parts.append(values[0])
+        else:
+            count += 1
+            parts.append(f"{{{count}}}")
+    if is_placeholder(parts[0]):
+        return None
+    return ".".join(parts)
+
+
 def infer(
     parents: Sequence[str],
     children: Sequence[str],
@@ -169,19 +187,8 @@ def _pair(parents: Sequence[str], children: Sequence[str]) -> dict[str, str]:
 
 def _key(parents: Sequence[str], required: Sequence[str]) -> str | None:
     """A key matching exactly `parents` among `required`, or `None`."""
-    split = [parent.split(".") for parent in parents]
-    if len({len(parts) for parts in split}) != 1:
-        return None
-    key_parts = []
-    count = 0
-    for values in zip(*split, strict=True):
-        if len(set(values)) == 1:
-            key_parts.append(values[0])
-        else:
-            count += 1
-            key_parts.append(f"{{{count}}}")
-    key = ".".join(key_parts)
-    if is_placeholder(key_parts[0]):
+    key = generalize(parents)
+    if key is None:
         return None
     if {bone for bone in required if match(key, bone) is not None} != set(parents):
         return None

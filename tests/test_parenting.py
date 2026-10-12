@@ -69,6 +69,29 @@ def test_has_placeholder_segment():
     assert not parenting.has_placeholder_segment("arm.L")
 
 
+# --- generalize -------------------------------------------------------------
+
+
+def test_generalize_keeps_identical_names_literal():
+    assert parenting.generalize(["wheel.front.L"]) == "wheel.front.L"
+    assert parenting.generalize(["root", "root"]) == "root"
+
+
+def test_generalize_numbers_each_differing_segment_in_order():
+    assert parenting.generalize(["wheel.front.L", "wheel.front.R"]) == "wheel.front.{1}"
+    assert (
+        parenting.generalize(["susarm.front.top.L", "susarm.rear.top.R"])
+        == "susarm.{1}.top.{2}"
+    )
+
+
+@pytest.mark.parametrize(
+    "names", [[], ["wheel.front.L", "axle.front.L"], ["wheel.front.L", "wheel.L"]]
+)
+def test_generalize_needs_a_shared_base_and_length(names):
+    assert parenting.generalize(names) is None
+
+
 # --- resolve / ancestors / is_valid / merge ---------------------------------
 
 

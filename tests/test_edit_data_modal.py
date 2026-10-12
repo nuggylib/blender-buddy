@@ -23,18 +23,29 @@ def test_field_keys_are_skeleton_root_keys():
     assert {key for key, _ in FIELDS} <= set(schema.skeleton("x"))
 
 
-async def test_armature_is_the_only_option_and_enter_picks_it():
+async def test_options_are_armature_then_mesh_roles_and_enter_picks():
     app = _Host()
     async with app.run_test() as pilot:
         await pilot.pause()
         options = app.screen.query_one("#data-fields", OptionList)
-        assert options.option_count == 1
-        assert str(options.get_option_at_index(0).prompt) == "Armature"
+        assert [
+            str(options.get_option_at_index(i).prompt)
+            for i in range(options.option_count)
+        ] == ["Armature", "Mesh roles"]
         assert app.screen.focused is options
 
         await pilot.press("enter")
         await pilot.pause()
         assert app.result == "armature"
+
+
+async def test_mesh_roles_returns_its_key():
+    app = _Host()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("down", "enter")
+        await pilot.pause()
+        assert app.result == "mesh_roles"
 
 
 async def test_escape_returns_none():
