@@ -353,7 +353,7 @@ async def test_edit_data_opens_the_mesh_roles_form_and_refreshes_on_return(
 
         await pilot.press("enter", *"body", "enter")
         await pilot.pause()
-        await pilot.press(*"body", "enter")
+        await pilot.press("space", "tab", "enter")
         await pilot.pause()
         await pilot.press("escape", "escape")
         assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))

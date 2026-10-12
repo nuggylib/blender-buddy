@@ -1,8 +1,8 @@
 """Mesh roles: `mesh_roles`, a role name → role-fields map.
 
 A role's `vtx_grp` is a pattern in `parenting`'s syntax — a literal base whose
-dot-segments may be `{n}` placeholders — and must match at least one of the
-spec's `required_bones`. Placeholders are all free for now.
+dot-segments may be `{n}` placeholders — inferred from checked
+`required_bones` so it matches exactly those. Placeholders are all free for now.
 
 Pure functions over strings, like `bones`.
 """
@@ -26,19 +26,6 @@ def validate_name(name: str, existing: Collection[str]) -> str | None:
 def matches(pattern: str, required: Sequence[str]) -> list[str]:
     """The required bones `pattern` matches, in order."""
     return [bone for bone in required if parenting.match(pattern, bone) is not None]
-
-
-def validate_vtx_grp(pattern: str, required: Sequence[str]) -> str | None:
-    """Why `pattern` is unusable as a `vtx_grp`, or `None`. Pass it trimmed."""
-    if not pattern:
-        return "Enter a vertex group pattern."
-    if len(pattern.encode("utf-8")) > bones.MAX_BYTES:
-        return f"Vertex group names are limited to {bones.MAX_BYTES} bytes."
-    if "" in pattern.split("."):
-        return f"'{pattern}' has an empty segment."
-    if not matches(pattern, required):
-        return f"'{pattern}' matches no required bone."
-    return None
 
 
 def infer_vtx_grp(checked: Collection[str], required: Sequence[str]) -> str:

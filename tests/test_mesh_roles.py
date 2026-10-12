@@ -1,4 +1,4 @@
-"""Unit tests for mesh-role validation (blender_buddy.specs.mesh_roles)."""
+"""Unit tests for mesh-role logic (blender_buddy.specs.mesh_roles)."""
 
 import pytest
 
@@ -55,38 +55,6 @@ def test_matches_needs_the_same_segment_count():
 
 def test_matches_keeps_the_base_literal():
     assert mesh_roles.matches("{1}.front.top.L", REQUIRED) == []
-
-
-# --- validate_vtx_grp ------------------------------------------------------
-
-
-def test_validate_vtx_grp_accepts_a_matching_pattern():
-    assert mesh_roles.validate_vtx_grp("susarm.{1}.top.{2}", REQUIRED) is None
-
-
-def test_validate_vtx_grp_rejects_blank():
-    assert mesh_roles.validate_vtx_grp("", REQUIRED) == "Enter a vertex group pattern."
-
-
-def test_validate_vtx_grp_rejects_over_the_byte_limit():
-    pattern = "a" * (bones.MAX_BYTES + 1)
-    assert mesh_roles.validate_vtx_grp(pattern, [pattern]) == (
-        f"Vertex group names are limited to {bones.MAX_BYTES} bytes."
-    )
-
-
-def test_validate_vtx_grp_rejects_an_empty_segment():
-    assert (
-        mesh_roles.validate_vtx_grp("susarm..L", REQUIRED)
-        == "'susarm..L' has an empty segment."
-    )
-
-
-def test_validate_vtx_grp_rejects_a_pattern_matching_nothing():
-    assert (
-        mesh_roles.validate_vtx_grp("wheel.{1}", REQUIRED)
-        == "'wheel.{1}' matches no required bone."
-    )
 
 
 # --- infer_vtx_grp ---------------------------------------------------------

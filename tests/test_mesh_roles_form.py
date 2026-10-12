@@ -2,7 +2,7 @@
 
 import json
 
-from textual.widgets import Input, Static
+from textual.widgets import Input, SelectionList, Static
 
 from blender_buddy.app import BlenderBuddyApp
 from blender_buddy.config import store as config_store
@@ -78,7 +78,39 @@ def _status(app):
 
 
 def _question_shown(app):
-    return app.screen.query_one("#role-vtx-grp-question").display
+    return app.screen.query_one("#role-bones-question").display
+
+
+def _bones(app):
+    checklist = app.screen.query_one("#role-bones", SelectionList)
+    return [
+        checklist.get_option_at_index(i).value for i in range(checklist.option_count)
+    ]
+
+
+def _selected(app):
+    return app.screen.query_one("#role-bones", SelectionList).selected
+
+
+def _preview(app):
+    return str(app.screen.query_one("#role-preview", Static).render())
+
+
+async def _check(pilot, app, *bones):
+    checklist = app.screen.query_one("#role-bones", SelectionList)
+    for bone in bones:
+        checklist.select(bone)
+    await pilot.pause()
+
+
+async def _add(pilot, app):
+    if _focused_id(app) == "role-bones":
+        await pilot.press("tab")
+    assert _focused_id(app) == "add-role"
+    while app.screen.focused.has_class("-active"):  # Button ignores repeat presses
+        await pilot.pause(0.05)
+    await pilot.press("enter")
+    await pilot.pause()
 
 
 def _lines(app):
@@ -128,30 +160,36 @@ async def test_no_required_bones_opens_nothing(tmp_path, monkeypatch):
 async def test_roles_are_added_one_after_another(tmp_path, monkeypatch):
     path = _spec(tmp_path)
     app = _app(tmp_path, monkeypatch)
-    async with app.run_test() as pilot:
+    async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path)
         await _edit(pilot)
 
         await _type(pilot, "  susarm_upper  ")
         assert _question_shown(app)
-        assert _focused_id(app) == "role-vtx-grp"
-        label = app.screen.query_one("#role-vtx-grp-label", Static)
-        assert str(label.render()) == "vtx_grp for 'susarm_upper'"
+        assert _focused_id(app) == "role-bones"
+        label = app.screen.query_one("#role-bones-label", Static)
+        assert str(label.render()) == "Bones for 'susarm_upper'"
+        assert _bones(app) == BONES
+        assert _preview(app) == ""
 
-        await _type(pilot, "susarm.{1}.top.{2}")
-        assert _roles(path) == {"susarm_upper": {"vtx_grp": "susarm.{1}.top.{2}"}}
+        await _check(pilot, app, "susarm.front.top.R", "susarm.front.top.L")
+        assert _preview(app) == "vtx_grp: susarm.front.top.{1}"
+        await _add(pilot, app)
+        assert _roles(path) == {"susarm_upper": {"vtx_grp": "susarm.front.top.{1}"}}
         assert _status(app) == "Mesh role 'susarm_upper' added."
         assert not _question_shown(app)
         assert _focused_id(app) == "role-name"
         assert app.screen.query_one("#role-name", Input).value == ""
-        assert app.screen.query_one("#role-vtx-grp", Input).value == ""
 
         await _type(pilot, "body")
-        await _type(pilot, "body")
+        await pilot.press("space")
+        await pilot.pause()
+        assert _preview(app) == "vtx_grp: body"
+        await _add(pilot, app)
         assert list(_roles(path)) == ["susarm_upper", "body"]
         assert _lines(app) == [
             "susarm_upper",
-            "vtx_grp: susarm.{1}.top.{2}",
+            "vtx_grp: susarm.front.top.{1}",
             "body",
             "vtx_grp: body",
         ]
@@ -176,46 +214,53 @@ async def test_bad_role_names_are_rejected(tmp_path, monkeypatch):
         assert app.screen.query_one("#role-name", Input).value == "body"
 
 
-async def test_bad_vtx_grp_is_rejected_and_nothing_written(tmp_path, monkeypatch):
-    path = _spec(tmp_path)
+async def test_bad_selections_are_rejected_and_nothing_written(tmp_path, monkeypatch):
+    path = _spec(tmp_path, bones=[*BONES, "susarm.rear.top.L"])
     app = _app(tmp_path, monkeypatch)
-    async with app.run_test() as pilot:
+    async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path)
         await _edit(pilot)
         await _type(pilot, "wheel")
 
         cases = [
-            ("", "Enter a vertex group pattern."),
-            ("a" * 64, "Vertex group names are limited to 63 bytes."),
-            ("susarm..L", "'susarm..L' has an empty segment."),
-            ("wheel.{1}", "'wheel.{1}' matches no required bone."),
+            ((), "Check at least one bone."),
+            (
+                ("body", "susarm.front.top.L"),
+                "'body' and 'susarm.front.top.L' can't share one pattern.",
+            ),
+            (
+                ("susarm.front.top.R", "susarm.rear.top.L"),
+                "'susarm.{1}.top.{2}' would also match susarm.front.top.L.",
+            ),
         ]
-        for text, message in cases:
-            app.screen.query_one("#role-vtx-grp", Input).value = ""
-            await _type(pilot, text)
+        for checked, message in cases:
+            app.screen.query_one("#role-bones", SelectionList).deselect_all()
+            await _check(pilot, app, *checked)
+            if checked:
+                assert _preview(app) == message
+            await _add(pilot, app)
             assert _status(app) == message
-            assert app.screen.query_one("#role-vtx-grp", Input).value == text
-            assert _focused_id(app) == "role-vtx-grp"
+            assert _selected(app) == list(checked)
+            assert _question_shown(app)
         assert _roles(path) == {}
 
 
 async def test_role_taken_in_between_is_reported(tmp_path, monkeypatch):
     path = _spec(tmp_path)
     app = _app(tmp_path, monkeypatch)
-    async with app.run_test() as pilot:
+    async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path)
         await _edit(pilot)
         await _type(pilot, "body")
         specs_store.add_mesh_role(path, "body", "body")
 
-        await _type(pilot, "susarm.{1}.top.{2}")
+        await _check(pilot, app, "body")
+        await _add(pilot, app)
         assert (
             _status(app) == "Could not write the spec: 'body' is already a mesh role."
         )
         assert _roles(path) == {"body": {"vtx_grp": "body"}}
-        assert app.screen.query_one("#role-vtx-grp", Input).value == (
-            "susarm.{1}.top.{2}"
-        )
+        assert _selected(app) == ["body"]
 
 
 async def test_escape_semantics(tmp_path, monkeypatch):
@@ -225,13 +270,18 @@ async def test_escape_semantics(tmp_path, monkeypatch):
         await _open(pilot, app, path)
         await _edit(pilot)
         await _type(pilot, "body")
-        await pilot.press(*"bo")
+        await _check(pilot, app, "body")
 
         await pilot.press("escape")
         assert not _question_shown(app)
-        assert app.screen.query_one("#role-vtx-grp", Input).value == ""
         assert _focused_id(app) == "role-name"
         assert app.screen.query_one("#role-name", Input).value == "body"
+
+        await _type(pilot, "")
+        assert _selected(app) == []
+        assert _preview(app) == ""
+        await pilot.press("escape")
+        assert _focused_id(app) == "role-name"
 
         await pilot.press("escape")
         assert app.screen.query_one("#role-name", Input).value == ""
@@ -260,24 +310,31 @@ async def test_q_does_not_quit(tmp_path, monkeypatch):
 async def test_markup_looking_text_renders_literally(tmp_path, monkeypatch):
     path = _spec(tmp_path)
     app = _app(tmp_path, monkeypatch)
-    async with app.run_test() as pilot:
+    async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path)
         await _edit(pilot)
         await _type(pilot, "[b]arm")
-        label = app.screen.query_one("#role-vtx-grp-label", Static)
-        assert str(label.render()) == "vtx_grp for '[b]arm'"
+        label = app.screen.query_one("#role-bones-label", Static)
+        assert str(label.render()) == "Bones for '[b]arm'"
 
-        await _type(pilot, "arm[L]")
+        await _check(pilot, app, "arm[L]")
+        assert _preview(app) == "vtx_grp: arm[L]"
+        await _add(pilot, app)
         assert _lines(app) == ["[b]arm", "vtx_grp: arm[L]"]
         assert _status(app) == "Mesh role '[b]arm' added."
 
 
-async def test_clicking_the_list_opens_the_editor(tmp_path, monkeypatch):
+async def test_clicking_the_list_opens_or_refocuses_the_editor(tmp_path, monkeypatch):
     path = _spec(tmp_path)
     app = _app(tmp_path, monkeypatch)
-    async with app.run_test() as pilot:
+    async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path)
         await pilot.click("#role-list")
         await pilot.pause()
         assert app.screen.query_one("#role-editor").display
         assert _focused_id(app) == "role-name"
+
+        await _type(pilot, "body")
+        await pilot.click("#role-list")
+        await pilot.pause()
+        assert _focused_id(app) == "role-bones"
