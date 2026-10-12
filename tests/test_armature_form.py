@@ -125,30 +125,52 @@ def _armature_name(app):
     return app.screen.query_one("#armature-name", Input)
 
 
-async def test_armature_name_is_prefilled_and_one_shift_tab_away(tmp_path, monkeypatch):
+def _name_view(app):
+    return [str(row.render()) for row in _rows(app, "armature-name-view")]
+
+
+async def test_armature_name_is_read_only_and_one_shift_tab_away(tmp_path, monkeypatch):
     path = _spec(tmp_path)
     specs_store.update_armature(path, object_name="Rig")
     app = _app(tmp_path, monkeypatch)
     async with app.run_test() as pilot:
         await _open(pilot, app, path)
-        assert _armature_name(app).value == "Rig"
+        assert _name_view(app) == ["Rig"]
+        assert not _armature_name(app).display
         await pilot.press("shift+tab")
+        assert _focused_id(app) == "armature-name-view"
+
+        await pilot.press("enter")
+        assert _armature_name(app).display
+        assert not app.screen.query_one("#armature-name-view").display
+        assert _armature_name(app).value == "Rig"
         assert _focused_id(app) == "armature-name"
 
 
-async def test_armature_name_is_saved_on_enter(tmp_path, monkeypatch):
+async def test_unset_armature_name_reads_not_set(tmp_path, monkeypatch):
+    path = _spec(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        await _open(pilot, app, path)
+        view = app.screen.query_one("#armature-name-view .field-list-empty")
+        assert str(view.render()) == "not set"
+
+
+async def test_armature_name_is_saved_on_enter_and_closes(tmp_path, monkeypatch):
     path = _spec(tmp_path)
     specs_store.update_armature(path, add_bones=["body"])
     app = _app(tmp_path, monkeypatch)
     async with app.run_test() as pilot:
         await _open(pilot, app, path)
-        await pilot.press("shift+tab")
+        await _edit(pilot, app, "armature-name-view")
         await _type(pilot, "  Rig[L] ")
 
         assert _armature(path)["object_name"] == "Rig[L]"
         assert _armature(path)["required_bones"] == ["body"]
-        assert _armature_name(app).value == "Rig[L]"
         assert _status(app) == "Armature name saved."
+        assert not _armature_name(app).display
+        assert _name_view(app) == ["Rig[L]"]
+        assert _focused_id(app) == "armature-name-view"
 
 
 async def test_blank_armature_name_clears_it(tmp_path, monkeypatch):
@@ -157,12 +179,13 @@ async def test_blank_armature_name_clears_it(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch)
     async with app.run_test() as pilot:
         await _open(pilot, app, path)
-        await pilot.press("shift+tab")
+        await _edit(pilot, app, "armature-name-view")
         _armature_name(app).value = ""
         await _type(pilot, "")
 
         assert _armature(path)["object_name"] == ""
         assert _status(app) == "Armature name cleared."
+        assert _name_view(app) == []
 
 
 async def test_over_long_armature_name_is_rejected(tmp_path, monkeypatch):
@@ -171,7 +194,7 @@ async def test_over_long_armature_name_is_rejected(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch)
     async with app.run_test() as pilot:
         await _open(pilot, app, path)
-        await pilot.press("shift+tab")
+        await _edit(pilot, app, "armature-name-view")
         _armature_name(app).value = "a" * 64
         await _type(pilot, "")
 
@@ -181,20 +204,21 @@ async def test_over_long_armature_name_is_rejected(tmp_path, monkeypatch):
         assert _focused_id(app) == "armature-name"
 
 
-async def test_escape_reverts_an_unsaved_armature_name_then_leaves(
-    tmp_path, monkeypatch
-):
+async def test_escape_closes_the_name_editor_unsaved_then_leaves(tmp_path, monkeypatch):
     path = _spec(tmp_path)
     specs_store.update_armature(path, object_name="Rig")
     app = _app(tmp_path, monkeypatch)
     async with app.run_test() as pilot:
         await _open(pilot, app, path)
-        await pilot.press("shift+tab", "end", "2")
+        await _edit(pilot, app, "armature-name-view")
+        await pilot.press("end", "2")
         assert _armature_name(app).value == "Rig2"
 
         await pilot.press("escape")
-        assert _armature_name(app).value == "Rig"
-        assert isinstance(app.screen, ArmatureFormScreen)
+        await pilot.pause()
+        assert not _armature_name(app).display
+        assert _name_view(app) == ["Rig"]
+        assert _focused_id(app) == "armature-name-view"
         assert _armature(path)["object_name"] == "Rig"
 
         await pilot.press("escape")

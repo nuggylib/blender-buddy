@@ -1,9 +1,10 @@
 """The armature form — name the armature, and add required bones without leaving.
 
-Enter in the armature-name field saves it (blank clears it). Each bone: type the name, answer one inline question per segment with no known
-inverse, then confirm a pre-checked checklist of its variants. The name logic
-lives in `specs.bones`; this screen only sequences it and writes via
-`specs.store.update_armature`.
+Each field shows read-only until selected. Enter in the armature-name editor
+saves it (blank clears it). Each bone: type the name, answer one inline
+question per segment with no known inverse, then confirm a pre-checked
+checklist of its variants. The name logic lives in `specs.bones`; this screen
+only sequences it and writes via `specs.store.update_armature`.
 
 **Full chain first:** variants are computed only once `next_missing` returns
 `None`, and a bone's pending inverse answers are written together, once.
@@ -41,8 +42,17 @@ _EMPTY = "No required bones yet."
 _NO_PARENTING = "No parenting yet."
 _NO_PARENTS = "Add required bones first."
 _SKIPPED = "Bones with a `{n}` segment can't be parented."
-_VIEWS = {"bones": "#bone-list", "parenting": "#parenting-list"}
-_EDITORS = {"bones": "#bone-editor", "parenting": "#parenting-editor"}
+_NOT_SET = "not set"
+_VIEWS = {
+    "name": "#armature-name-view",
+    "bones": "#bone-list",
+    "parenting": "#parenting-list",
+}
+_EDITORS = {
+    "name": "#armature-name",
+    "bones": "#bone-editor",
+    "parenting": "#parenting-editor",
+}
 _FIELDS = {view[1:]: field for field, view in _VIEWS.items()}
 
 
@@ -73,8 +83,8 @@ class ArmatureFormScreen(Screen):
 
     Fields show read-only in `FieldList`s; selecting one opens its editor and
     closes any other. The name and each confirmed bone are written on Enter, so
-    leaving never loses work. `escape` reverts an unsaved armature-name edit,
-    steps back one question mid-bone, clears a non-empty idle bone field, closes
+    leaving never loses work. `escape` closes the name editor unsaved, steps
+    back one question mid-bone, clears a non-empty idle bone field, closes
     the editor from an empty one, and leaves when no editor is open. `q` is
     shadowed: the form holds Inputs and a Button.
     """
@@ -89,7 +99,7 @@ class ArmatureFormScreen(Screen):
         height: auto;
         padding: 1 2 0 2;
     }
-    ArmatureFormScreen #bone-status {
+    ArmatureFormScreen #bone-status, ArmatureFormScreen #armature-name-view {
         height: auto;
     }
     ArmatureFormScreen #armature-columns {
@@ -144,8 +154,15 @@ class ArmatureFormScreen(Screen):
             yield Static(
                 f"Armature — {escape(self.path.stem)}", classes="section-title"
             )
-            yield Static("Armature name", classes="config-detail")
-            yield Input(id="armature-name")
+            yield FieldList(
+                "Armature name",
+                _NOT_SET,
+                id="armature-name-view",
+                classes="field-list",
+            )
+            armature_name = Input(id="armature-name", classes="editor")
+            armature_name.border_title = "Armature name"
+            yield armature_name
             yield Static("", id="bone-status", classes="config-detail", markup=False)
         with Horizontal(id="armature-columns"):
             with Vertical(id="bone-column"):
@@ -182,7 +199,7 @@ class ArmatureFormScreen(Screen):
             self._saved_name = store.armature_name(store.read(self.path))
         except (OSError, ValueError):
             pass  # `_show_bones` reports it
-        self.query_one("#armature-name", Input).value = self._saved_name
+        self._show_name()
         self.query_one("#bone-list", FieldList).focus()
         self._show_bones()
 
@@ -201,12 +218,10 @@ class ArmatureFormScreen(Screen):
             return
         if self._editing == "bones":
             await self._back_bone()
-            return
-        armature_name = self.query_one("#armature-name", Input)
-        if armature_name.has_focus and armature_name.value != self._saved_name:
-            armature_name.value = self._saved_name
-            return
-        self.app.pop_screen()
+        elif self._editing == "name":
+            await self._close()
+        else:
+            self.app.pop_screen()
 
     async def _back_bone(self) -> None:
         name = self.query_one("#bone-name", Input)
@@ -244,10 +259,15 @@ class ArmatureFormScreen(Screen):
             await self._close()
             self._editing = field
             self.query_one(_EDITORS[field]).display = True
+            if field == "name":
+                self.query_one("#armature-name", Input).value = self._saved_name
+                self.query_one(_VIEWS[field]).display = False
         self._focus_editor()
 
     def _focus_editor(self) -> None:
-        if self._editing == "bones":
+        if self._editing == "name":
+            self.query_one("#armature-name", Input).focus()
+        elif self._editing == "bones":
             self.query_one("#bone-name", Input).focus()
         elif self._editing == "parenting":
             self.query_one("#child-bones" if self._picked else "#parent-bones").focus()
@@ -257,7 +277,9 @@ class ArmatureFormScreen(Screen):
         field, self._editing = self._editing, None
         if field is None:
             return
-        if field == "bones":
+        if field == "name":
+            self.query_one(_VIEWS[field]).display = True
+        elif field == "bones":
             self._bone = None
             await self._clear_question()
             self.query_one("#bone-name", Input).value = ""
@@ -270,7 +292,7 @@ class ArmatureFormScreen(Screen):
     # -- the form ----------------------------------------------------------
 
     @on(Input.Submitted, "#armature-name")
-    def _on_armature_name(self, event: Input.Submitted) -> None:
+    async def _on_armature_name(self, event: Input.Submitted) -> None:
         self._status("")
         name = event.value.strip()
         if len(name.encode("utf-8")) > bones.MAX_BYTES:
@@ -279,10 +301,9 @@ class ArmatureFormScreen(Screen):
         if not self._write(object_name=name):
             return
         self._saved_name = name
-        event.input.value = name
+        self._show_name()
+        await self._close()
         self._status("Armature name saved." if name else "Armature name cleared.")
-        if self._editing == "bones" and self._bone is None:
-            self.query_one("#bone-name", Input).focus()
 
     @on(Input.Submitted, "#bone-name")
     async def _on_name(self, event: Input.Submitted) -> None:
@@ -528,6 +549,11 @@ class ArmatureFormScreen(Screen):
         picker.display = bool(self._parents)
         if picker.display:
             self.query_one("#parent-bones", SelectionList).focus()
+
+    def _show_name(self) -> None:
+        self.query_one("#armature-name-view", FieldList).lines = (
+            ((self._saved_name, 0),) if self._saved_name else ()
+        )
 
     def _show_bones(self) -> None:
         try:

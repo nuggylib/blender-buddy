@@ -308,7 +308,7 @@ async def test_armature_name_set_on_the_form_shows_on_return(tmp_path, monkeypat
         assert await _wait_for(
             pilot, lambda: isinstance(app.screen, ArmatureFormScreen)
         )
-        await pilot.press("shift+tab", *"Rig", "enter")
+        await pilot.press("shift+tab", "enter", *"Rig", "enter")
         await pilot.pause()
         await pilot.press("escape")
         assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))
