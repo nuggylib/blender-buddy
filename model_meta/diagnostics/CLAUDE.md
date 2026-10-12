@@ -11,7 +11,7 @@ actually launches. These are release-pipeline concerns, deliberately kept out of
 - `__init__.py` — re-exports `run_headless_check`.
 
 ## Conventions
-- `app.py`'s `main()` dispatches `blender-buddy --check` here via a lazy import
+- `app.py`'s `main()` dispatches `model-meta --check` here via a lazy import
   (avoids an import cycle: this module imports `ModelMetaApp` lazily too).
 - Knobs that belong to a check (timeouts, sizes) live with the check, not on
   `ModelMetaApp`.

@@ -1,7 +1,7 @@
 [project]
 name = "model-meta"
 version = "0.1.0"
-description = "TUI to expedite building Godot-ready game models in Blender."
+description = "TUI for defining Godot-compatible 3D model specs and validating an open modeling scene against them."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

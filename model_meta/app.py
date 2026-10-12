@@ -45,7 +45,7 @@ class ModelMetaApp(App):
     dashboard, an *absent* one runs the first-time setup wizard, and a *corrupt*
     one boots the dashboard with a non-blocking recovery notice (never
     auto-overwritten). `config_path` is injectable so tests — and the future
-    `blender-buddy setup` entry — can point at a throwaway file instead of the
+    `model-meta setup` entry — can point at a throwaway file instead of the
     real `platformdirs` location.
 
     `force_setup` (the `--setup` flag) opens the wizard on top of whatever the
@@ -176,8 +176,11 @@ def main(argv: list[str] | None = None) -> None:
     ``subprocess``.
     """
     parser = argparse.ArgumentParser(
-        prog="blender-buddy",
-        description="TUI to expedite building Godot-ready game models in Blender.",
+        prog="model-meta",
+        description=(
+            "TUI for defining Godot-compatible 3D model specs and validating "
+            "an open modeling scene against them."
+        ),
     )
     parser.add_argument(
         "--version",

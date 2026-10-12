@@ -3,7 +3,7 @@
 Booting the app through Textual's headless pilot forces the stylesheet to parse
 and the full import graph to resolve, so a missing ``app.tcss`` or hidden import
 fails here instead of in a user's terminal. The release pipeline runs this
-against each freshly built binary (via ``blender-buddy --check``) before
+against each freshly built binary (via ``model-meta --check``) before
 uploading anything.
 """
 

@@ -1,5 +1,5 @@
 """Covers the non-interactive CLI surface the release pipeline depends on:
-``blender-buddy --version`` and ``blender-buddy --check``, plus the ``--setup``
+``model-meta --version`` and ``model-meta --check``, plus the ``--setup``
 flag's routing into the app (without spinning up a real TTY).
 """
 

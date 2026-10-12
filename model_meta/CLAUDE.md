@@ -6,7 +6,7 @@ this package sits at the repository root, not under `src/`).
 
 ## Files
 - `app.py` — `ModelMetaApp` (the Textual `App`) and the `main()` entry point
-  used by both the `blender-buddy` console script and `python -m model_meta`.
+  used by both the `model-meta` console script and `python -m model_meta`.
   `main(argv=None)` takes injectable args (unit-testable without `subprocess`)
   and exposes `--version`, `--check`, and `--setup` (re-run the setup wizard);
   bare invocation still launches the TUI.
