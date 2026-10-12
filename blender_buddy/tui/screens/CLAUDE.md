@@ -125,6 +125,15 @@ in the app (analogous to a route in a web app).
   from an empty one. Failures keep the field's text, show `#bone-status`, and
   write nothing. User-typed names render with `markup=False`
   (`rich.markup.escape` misses uppercase tags like `[L]`).
+  **Two columns** under the name/status: bones (field, question, list) on the
+  left, parenting on the right. **Parenting:** `#parent-bones` lists
+  `required_bones` (one Tab from an idle `#bone-name`); Enter hides it and
+  mounts an unchecked `#child-bones` of eligible bones (not the parent, not
+  already parented, not its ancestors), a `#parenting-preview`, and **Add**.
+  Preview and Add both call `specs.parenting.infer` on a fresh read, so the
+  preview is what gets written. `escape` there drops the pick (nothing written);
+  on an idle `#parent-bones` it leaves. `#parenting-list` shows `key → children`.
+  Never name an attribute `_parent` here — it shadows Textual's `DOMNode._parent`.
 - `blender_detail.py`, `godot_detail.py` — the other two detail screens
   (`blender-detail`, `godot-detail` in `SCREENS`). Still **placeholders**: they
   render the configured value they own plus a `#placeholder-note`. They exist so

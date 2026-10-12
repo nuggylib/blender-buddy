@@ -17,17 +17,28 @@ disk. **No Textual, no UI.**
   unmapped segment** so a partial checklist can't be built. `.L`/`.R` are
   `BUILTIN_INVERSES` in code, never written to a spec and never remappable.
   Source-agnostic: typed or scene-inferred names go through the same calls.
+- `parenting.py` — pure `armature.parenting` logic. A pattern is a bone name
+  whose segments may be `{n}`, each matching one whole segment (base always
+  literal). Key placeholders are **bound** (children reuse the value); child-only
+  ones are **free**. `match`, `pairs`/`resolve` (against `required_bones`),
+  `ancestors`, `is_valid` (≤1 parent, no cycles), `merge` (append-dedupe per
+  key). `infer(parent, children, …)` binds variable segments the parent and
+  child share by value (so mirrors are covered), tries freeing the child's
+  others, then bound-only, and falls back to **exact names** whenever a pattern
+  would match an unchecked bone or break `is_valid`. Other syntaxes (`*`,
+  regex) just match literally.
 - `store.py` — the filesystem: `create(specs_dir, model_type)` writes a new
   skeleton (raising `FileExistsError` rather than overwriting),
   `list_specs(specs_dir)` classifies every spec as `OK` / `UNREADABLE` /
   `MISMATCHED`, and `count(specs_dir)` tallies them without parsing any.
   `read(path)` returns one document, raising `OSError` / `ValueError` when it
   is unreadable, not an object, or has a malformed `object_name` /
-  `required_bones` / `bone_name_inverses` (`armature_name()` /
-  `required_bones()` / `bone_name_inverses()` default them for older specs).
-  `update_armature(path, add_bones=, set_inverses=, drop_inverses=,
-  object_name=)` re-reads, patches **only** those three keys (bones deduped,
-  drops before sets, `object_name=None` leaves the name alone), and writes
+  `required_bones` / `bone_name_inverses` / `parenting` (`armature_name()` /
+  `required_bones()` / `bone_name_inverses()` / `parenting_map()` default them
+  for older specs). `update_armature(path, add_bones=, set_inverses=,
+  drop_inverses=, object_name=, add_parenting=)` re-reads, patches **only**
+  those keys (bones deduped, drops before sets, `object_name=None` leaves the
+  name alone, parenting merged via `parenting.merge`), and writes
   atomically — hand edits to anything else survive.
 
 ## Updates replace atomically; `create` uses O_EXCL
