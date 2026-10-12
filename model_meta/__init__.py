@@ -1,4 +1,4 @@
-"""Blender Buddy — a TUI for building Godot-ready game models in Blender."""
+"""Model Meta — a TUI for Godot-compatible 3D model specs and scene validation."""
 
 try:
     # Written by CI at build time (gitignored); resolves the full canary/dev

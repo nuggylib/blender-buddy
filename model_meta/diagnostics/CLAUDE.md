@@ -1,6 +1,6 @@
 # model_meta/diagnostics/
 
-Build/launch diagnostics: self-tests that verify a **packaged** Blender Buddy
+Build/launch diagnostics: self-tests that verify a **packaged** Model Meta
 actually launches. These are release-pipeline concerns, deliberately kept out of
 `app.py` so the application module carries no CI/packaging machinery.
 

@@ -1,1 +1,1 @@
-"""Textual UI layer for Blender Buddy: screens and widgets."""
+"""Textual UI layer for Model Meta: screens and widgets."""

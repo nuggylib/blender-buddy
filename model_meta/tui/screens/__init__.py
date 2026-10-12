@@ -1,1 +1,1 @@
-"""Full-page Textual screens for Blender Buddy."""
+"""Full-page Textual screens for Model Meta."""

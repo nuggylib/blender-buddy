@@ -1,7 +1,7 @@
 # model_meta/
 
-The Blender Buddy application package. Everything under this directory _is_
-Blender Buddy and is packaged together into the published binary (flat layout —
+The Model Meta application package. Everything under this directory _is_
+Model Meta and is packaged together into the published binary (flat layout —
 this package sits at the repository root, not under `src/`).
 
 ## Files

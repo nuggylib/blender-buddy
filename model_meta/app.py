@@ -1,4 +1,4 @@
-"""Root Blender Buddy application and its entry point."""
+"""Root Model Meta application and its entry point."""
 
 import argparse
 import asyncio
@@ -35,7 +35,7 @@ def _resource_path(name: str) -> Path:
 
 
 class ModelMetaApp(App):
-    """The Blender Buddy TUI.
+    """The Model Meta TUI.
 
     This is the spine the product hangs off of: future work adds reactive
     validation state driven by a Blender-polling worker, plus category detail

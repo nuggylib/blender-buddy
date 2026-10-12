@@ -1,4 +1,4 @@
-"""Persistence layer — the config file Blender Buddy reads and writes.
+"""Persistence layer — the config file Model Meta reads and writes.
 
 This is the app's first persistence layer. It holds the three machine-specific
 anchors captured by first-time setup (Blender executable, models directory,

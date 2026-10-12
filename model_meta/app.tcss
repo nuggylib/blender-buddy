@@ -1,4 +1,4 @@
-/* Application-level styles for Blender Buddy. */
+/* Application-level styles for Model Meta. */
 
 /* The shared config vocabulary. The dashboard and the per-section detail
    screens render the same kinds of line — a heading, a configured value, a
