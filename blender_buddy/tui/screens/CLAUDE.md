@@ -149,11 +149,13 @@ in the app (analogous to a route in a web app).
   adding mesh roles. Read-only `#role-list` (a `FieldList`: each role, its
   `vtx_grp` indented) until Enter or a click opens `#role-editor`; with no
   `required_bones` it opens nothing and says why in `#role-status`. Enter in
-  `#role-name` validates the name and reveals `#role-vtx-grp-question`; Enter
-  there validates the pattern (`specs.mesh_roles`, fresh read) and writes via
-  `add_mesh_role`, then returns to an empty `#role-name`. `escape`: hide the
-  pattern question → clear the name → close the editor → leave. Failures keep
-  the text and write nothing. `q` shadowed.
+  `#role-name` validates the name and reveals `#role-bones-question`: a
+  `#role-bones` checklist refilled from a fresh read, a live `#role-preview` of
+  `mesh_roles.infer_vtx_grp` (or why none fits), and **Add**, which infers on a
+  fresh read and writes via `add_mesh_role`, then returns to an empty
+  `#role-name`. No typed pattern. `escape`: hide the bones question → clear the
+  name → close the editor → leave. Failures keep the checks and write nothing.
+  `q` shadowed.
 - `blender_detail.py`, `godot_detail.py` — the other two detail screens
   (`blender-detail`, `godot-detail` in `SCREENS`). Still **placeholders**: they
   render the configured value they own plus a `#placeholder-note`. They exist so

@@ -20,9 +20,10 @@ disk. **No Textual, no UI.**
 - `parenting.py` — pure `armature.parenting` logic. A pattern is a bone name
   whose segments may be `{n}`, each matching one whole segment (base always
   literal). Key placeholders are **bound** (children reuse the value); child-only
-  ones are **free**. `match`, `pairs`/`resolve` (against `required_bones`),
-  `ancestors`, `is_valid` (≤1 parent, no cycles), `merge` (append-dedupe per
-  key). `infer(parents, children, …)` is **what you check is what you get**:
+  ones are **free**. `match`, `generalize` (`{n}` wherever names differ),
+  `pairs`/`resolve` (against `required_bones`), `ancestors`, `is_valid` (≤1
+  parent, no cycles), `merge` (append-dedupe per key).
+  `infer(parents, children, …)` is **what you check is what you get**:
   each child pairs with the one checked parent whose distinguishing segments it
   holds (else `ValueError`); the key placeholders the positions where checked
   parents differ (and must match exactly them); child patterns bind those
@@ -30,9 +31,10 @@ disk. **No Textual, no UI.**
   resolve to exactly the intended pairs and keep `is_valid`. Anything else is
   written as **exact names**. Other syntaxes (`*`, regex) just match literally.
 - `mesh_roles.py` — pure `mesh_roles` logic. `validate_name` (trimmed,
-  non-empty, unique by exact compare) and `validate_vtx_grp`: a `vtx_grp` is a
-  `parenting`-syntax pattern (63-byte limit, no empty segments) that must
-  `matches` at least one required bone. Every `{n}` is free for now.
+  non-empty, unique by exact compare) and `infer_vtx_grp(checked, required)`:
+  the `parenting`-syntax pattern (`generalize`, 63-byte limit) that `matches`
+  **exactly** the checked bones, else `ValueError` naming why (incl. any extra
+  bones it would match). Every `{n}` is free for now.
 - `store.py` — the filesystem: `create(specs_dir, model_type)` writes a new
   skeleton (raising `FileExistsError` rather than overwriting),
   `list_specs(specs_dir)` classifies every spec as `OK` / `UNREADABLE` /
