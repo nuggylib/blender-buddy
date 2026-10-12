@@ -102,8 +102,9 @@ in the app (analogous to a route in a web app).
   `check_action` disables `e`. `e` (**Edit data**) runs a
   `@work(exclusive=True, group="edit-data")` worker:
   `push_screen_wait(EditDataModal())`, then `"armature"` →
-  `ArmatureFormScreen(path)` and `"mesh_roles"` → `MeshRolesFormScreen(path)`. A new root field is one `FIELDS` entry in the
-  picker, one route here, and one `FieldSummary` with its rows.
+  `ArmatureFormScreen(path)` and `"mesh_roles"` → `MeshRolesFormScreen(path)`.
+  A new root field is one `FIELDS` entry in the picker, one route here, and one
+  `FieldSummary` with its rows.
 - `edit_data_modal.py` — `EditDataModal(ModalScreen[str | None])`: an
   `OptionList` of spec root fields from `FIELDS` (keys are `schema.skeleton`
   root keys: Armature, Mesh roles). Returns the key, or `None` on `escape`.

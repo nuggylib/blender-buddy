@@ -42,8 +42,9 @@ disk. **No Textual, no UI.**
   `required_bones` / `bone_name_inverses` / `parenting`, or a `mesh_roles` that
   isn't a map of objects with string `vtx_grp`s (`armature_name()` /
   `required_bones()` / `bone_name_inverses()` / `parenting_map()` /
-  `mesh_roles()` default them for older specs). `update_armature(path, add_bones=, set_inverses=,
-  drop_inverses=, object_name=, add_parenting=)` re-reads, patches **only**
+  `mesh_roles()` default them for older specs). `update_armature(path,
+  add_bones=, set_inverses=, drop_inverses=, object_name=, add_parenting=)`
+  re-reads, patches **only**
   those keys (bones deduped, drops before sets, `object_name=None` leaves the
   name alone, parenting merged via `parenting.merge`), and writes
   atomically — hand edits to anything else survive.
@@ -51,8 +52,8 @@ disk. **No Textual, no UI.**
   taken name, and writes only `mesh_roles[name] = {"vtx_grp": …}` the same way.
 
 ## Updates replace atomically; `create` uses O_EXCL
-`update_armature` and `add_mesh_role` write a sibling `.tmp` and `os.replace`s it, like
-`config/store.py`: replacing *is* the point of an update, and a crash never
+`update_armature` and `add_mesh_role` write a sibling `.tmp` and `os.replace`
+it, like `config/store.py`: replacing *is* the point of an update, and a crash never
 leaves a half-written spec. `create` deliberately does not: a replace would
 *overwrite* the existing file, defeating
 the one guarantee this function exists to make. `open(path, "x")` makes "reject
