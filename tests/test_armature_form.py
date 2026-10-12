@@ -62,6 +62,12 @@ async def _type(pilot, text):
     await pilot.pause()
 
 
+async def _edit(pilot, app, view_id):
+    app.screen.query_one(f"#{view_id}").focus()
+    await pilot.press("enter")
+    await pilot.pause()
+
+
 def _focused_id(app):
     return app.screen.focused.id if app.screen.focused else None
 
@@ -89,13 +95,19 @@ def _inverse_label(app):
     return str(app.screen.query_one("#bone-inverse-label", Static).render())
 
 
-async def test_form_opens_focused_on_the_name_field(tmp_path, monkeypatch):
+async def test_form_opens_read_only_on_the_bone_list(tmp_path, monkeypatch):
     path = _spec(tmp_path)
     app = _app(tmp_path, monkeypatch)
     async with app.run_test() as pilot:
         await _open(pilot, app, path)
-        assert _focused_id(app) == "bone-name"
+        assert _focused_id(app) == "bone-list"
         assert app.screen.query_one("#bone-list .field-list-empty")
+        assert not app.screen.query_one("#bone-editor").display
+        assert not app.screen.query_one("#parenting-editor").display
+
+        await pilot.press("enter")
+        assert app.screen.query_one("#bone-editor").display
+        assert _focused_id(app) == "bone-name"
 
 
 async def test_form_lists_every_bone_already_in_the_spec(tmp_path, monkeypatch):
@@ -120,7 +132,6 @@ async def test_armature_name_is_prefilled_and_one_shift_tab_away(tmp_path, monke
     async with app.run_test() as pilot:
         await _open(pilot, app, path)
         assert _armature_name(app).value == "Rig"
-        assert _focused_id(app) == "bone-name"
         await pilot.press("shift+tab")
         assert _focused_id(app) == "armature-name"
 
@@ -138,7 +149,6 @@ async def test_armature_name_is_saved_on_enter(tmp_path, monkeypatch):
         assert _armature(path)["required_bones"] == ["body"]
         assert _armature_name(app).value == "Rig[L]"
         assert _status(app) == "Armature name saved."
-        assert _focused_id(app) == "bone-name"
 
 
 async def test_blank_armature_name_clears_it(tmp_path, monkeypatch):
@@ -196,6 +206,7 @@ async def test_plain_name_is_written_listed_and_cleared(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch)
     async with app.run_test() as pilot:
         await _open(pilot, app, path)
+        await _edit(pilot, app, "bone-list")
         await _type(pilot, "body")
 
         assert _armature(path)["required_bones"] == ["body"]
@@ -209,6 +220,7 @@ async def test_wheel_front_left_end_to_end(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(80, 40)) as pilot:
         await _open(pilot, app, path)
+        await _edit(pilot, app, "bone-list")
         await _type(pilot, "wheel.front.L")
 
         assert "Inverse of `.front`" in _inverse_label(app)
@@ -237,6 +249,7 @@ async def test_full_chain_first_with_two_unmapped_segments(tmp_path, monkeypatch
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(80, 40)) as pilot:
         await _open(pilot, app, path)
+        await _edit(pilot, app, "bone-list")
         before = path.read_bytes()
 
         await _type(pilot, "susarm.front.top.L")
@@ -267,6 +280,7 @@ async def test_several_bones_in_one_visit_and_builtin_only_skips_questions(
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(80, 40)) as pilot:
         await _open(pilot, app, path)
+        await _edit(pilot, app, "bone-list")
         await _type(pilot, "body")
         await _type(pilot, "arm.L")
 
@@ -285,6 +299,7 @@ async def test_unchecking_a_variant_leaves_it_out(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(80, 40)) as pilot:
         await _open(pilot, app, path)
+        await _edit(pilot, app, "bone-list")
         await _type(pilot, "wheel.front.L")
         await _type(pilot, ".rear")
 
@@ -306,6 +321,7 @@ async def test_blank_inverse_is_saved_as_a_self_mapping(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(80, 40)) as pilot:
         await _open(pilot, app, path)
+        await _edit(pilot, app, "bone-list")
         await _type(pilot, "finger.tip")
         await _type(pilot, "")
 
@@ -325,6 +341,7 @@ async def test_checklist_skipped_when_every_variant_is_required(tmp_path, monkey
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(80, 40)) as pilot:
         await _open(pilot, app, path)
+        await _edit(pilot, app, "bone-list")
         await _type(pilot, "arm.L")
 
         assert not app.screen.query("#bone-variants")
@@ -336,6 +353,7 @@ async def test_back_from_checklist_rewrites_the_mapping(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(80, 40)) as pilot:
         await _open(pilot, app, path)
+        await _edit(pilot, app, "bone-list")
         await _type(pilot, "wheel.front.L")
         await _type(pilot, ".rear")
         assert _armature(path)["bone_name_inverses"] == FRONT_REAR
@@ -360,6 +378,7 @@ async def test_escape_semantics(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(80, 40)) as pilot:
         await _open(pilot, app, path)
+        await _edit(pilot, app, "bone-list")
         await _type(pilot, "wheel.front.L")
 
         await pilot.press("escape")  # inverse question → name field
@@ -374,7 +393,13 @@ async def test_escape_semantics(tmp_path, monkeypatch):
         assert name.value == ""
         assert isinstance(app.screen, ArmatureFormScreen)
 
-        await pilot.press("escape")  # idle and empty → leaves
+        await pilot.press("escape")  # idle and empty → closes the editor
+        await pilot.pause()
+        assert not app.screen.query_one("#bone-editor").display
+        assert _focused_id(app) == "bone-list"
+        assert isinstance(app.screen, ArmatureFormScreen)
+
+        await pilot.press("escape")  # nothing open → leaves
         assert await _wait_for(pilot, lambda: isinstance(app.screen, DashboardScreen))
         assert _armature(path)["required_bones"] == []
 
@@ -387,6 +412,7 @@ async def test_failures_keep_text_and_write_nothing(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(80, 40)) as pilot:
         await _open(pilot, app, path)
+        await _edit(pilot, app, "bone-list")
         before = path.read_bytes()
 
         await _type(pilot, "body")
@@ -415,6 +441,7 @@ async def test_unwritable_spec_reports_and_keeps_the_name(tmp_path, monkeypatch)
 
     async with app.run_test(size=(80, 40)) as pilot:
         await _open(pilot, app, path)
+        await _edit(pilot, app, "bone-list")
         monkeypatch.setattr(specs_store, "update_armature", refuse)
         await _type(pilot, "body")
 
@@ -428,6 +455,7 @@ async def test_q_does_not_quit_from_the_add_button(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(80, 40)) as pilot:
         await _open(pilot, app, path)
+        await _edit(pilot, app, "bone-list")
         await _type(pilot, "arm.L")
         assert _focused_id(app) == "add-bones"
 
@@ -458,7 +486,7 @@ def _rig(tmp_path, parenting=None):
 
 
 async def _choose(pilot, app, parents):
-    await pilot.press("tab", "tab")
+    await _edit(pilot, app, "parenting-list")
     assert _focused_id(app) == "parent-bones"
     checklist = app.screen.query_one("#parent-bones", SelectionList)
     for parent in parents:
@@ -492,9 +520,11 @@ async def test_parenting_section_empty_states(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path)
-        assert not app.screen.query_one("#parent-picker").display
-        assert app.screen.query_one("#parent-bones-empty").display
         assert app.screen.query_one("#parenting-list .field-list-empty")
+        await _edit(pilot, app, "parenting-list")
+        assert _status(app) == "Add required bones first."
+        assert not app.screen.query_one("#parenting-editor").display
+        assert _focused_id(app) == "parenting-list"
 
 
 async def test_checked_parents_end_to_end(tmp_path, monkeypatch):
@@ -623,7 +653,12 @@ async def test_parenting_escape_steps_back_then_clears_then_leaves(
         await pilot.press("escape")
         await pilot.pause()
         assert parents.selected == []
-        assert isinstance(app.screen, ArmatureFormScreen)
+        assert app.screen.query_one("#parenting-editor").display
+
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not app.screen.query_one("#parenting-editor").display
+        assert _focused_id(app) == "parenting-list"
         assert path.read_bytes() == before
 
         await pilot.press("escape")
@@ -637,6 +672,42 @@ async def test_new_bone_refreshes_the_parent_list(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path)
+        await _edit(pilot, app, "bone-list")
         await _type(pilot, "body")
         assert app.screen._parents == ["body"]
         assert app.screen.query_one("#parent-picker").display
+
+
+async def test_opening_a_field_closes_the_other_unwritten(tmp_path, monkeypatch):
+    path = _rig(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 50)) as pilot:
+        await _open(pilot, app, path)
+        before = path.read_bytes()
+        await _edit(pilot, app, "bone-list")
+        await _type(pilot, "arm.top")
+        assert app.screen.query("#bone-inverse")
+
+        await _choose(pilot, app, ["root"])
+        assert not app.screen.query_one("#bone-editor").display
+        assert not app.screen.query("#bone-inverse")
+        assert app.screen.query_one("#bone-name", Input).value == ""
+        assert _focused_id(app) == "child-bones"
+
+        await _edit(pilot, app, "bone-list")
+        assert not app.screen.query_one("#parenting-editor").display
+        assert not app.screen.query("#child-bones")
+        assert app.screen.query_one("#parent-bones", SelectionList).selected == []
+        assert _focused_id(app) == "bone-name"
+        assert path.read_bytes() == before
+
+
+async def test_clicking_a_field_opens_its_editor(tmp_path, monkeypatch):
+    path = _rig(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 50)) as pilot:
+        await _open(pilot, app, path)
+        await pilot.click("#parenting-list")
+        await pilot.pause()
+        assert app.screen.query_one("#parenting-editor").display
+        assert _focused_id(app) == "parent-bones"

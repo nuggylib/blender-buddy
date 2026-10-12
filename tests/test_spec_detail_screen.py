@@ -275,9 +275,9 @@ async def test_edit_data_opens_the_armature_form_and_refreshes_on_return(
         )
         assert app.screen.path == tmp_path / "specs" / "vehicle.json"
 
-        await pilot.press(*"body", "enter")
+        await pilot.press("enter", *"body", "enter")
         await pilot.pause()
-        await pilot.press("escape")
+        await pilot.press("escape", "escape")
         assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))
         assert await _wait_for(pilot, lambda: "Bones: 1" in _rows(app))
 

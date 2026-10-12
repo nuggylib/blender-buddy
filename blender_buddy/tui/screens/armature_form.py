@@ -41,6 +41,9 @@ _EMPTY = "No required bones yet."
 _NO_PARENTING = "No parenting yet."
 _NO_PARENTS = "Add required bones first."
 _SKIPPED = "Bones with a `{n}` segment can't be parented."
+_VIEWS = {"bones": "#bone-list", "parenting": "#parenting-list"}
+_EDITORS = {"bones": "#bone-editor", "parenting": "#parenting-editor"}
+_FIELDS = {view[1:]: field for field, view in _VIEWS.items()}
 
 
 @dataclass
@@ -68,11 +71,12 @@ class _Bone:
 class ArmatureFormScreen(Screen):
     """Stay-on form for the armature's name and bones, pushed as an instance.
 
-    The name and each confirmed bone are written on Enter, so leaving never
-    loses work. `escape` reverts an unsaved armature-name edit, steps back one
-    question mid-bone, clears a non-empty idle bone field, and leaves from an
-    empty one. `q` is shadowed: the form holds Inputs
-    and a Button.
+    Fields show read-only in `FieldList`s; selecting one opens its editor and
+    closes any other. The name and each confirmed bone are written on Enter, so
+    leaving never loses work. `escape` reverts an unsaved armature-name edit,
+    steps back one question mid-bone, clears a non-empty idle bone field, closes
+    the editor from an empty one, and leaves when no editor is open. `q` is
+    shadowed: the form holds Inputs and a Button.
     """
 
     BINDINGS = [
@@ -97,6 +101,10 @@ class ArmatureFormScreen(Screen):
     }
     ArmatureFormScreen #bone-column {
         margin-right: 2;
+    }
+    ArmatureFormScreen .editor {
+        height: auto;
+        display: none;
     }
     ArmatureFormScreen #bone-question, ArmatureFormScreen #parent-question,
     ArmatureFormScreen #parent-picker {
@@ -126,7 +134,9 @@ class ArmatureFormScreen(Screen):
         self._bone: _Bone | None = None
         self._saved_name = ""
         self._parents: list[str] = []
+        self._skipped = False
         self._picked: list[str] = []
+        self._editing: str | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -139,27 +149,26 @@ class ArmatureFormScreen(Screen):
             yield Static("", id="bone-status", classes="config-detail", markup=False)
         with Horizontal(id="armature-columns"):
             with Vertical(id="bone-column"):
-                yield Static("Bone name", classes="config-detail")
-                yield Input(id="bone-name")
-                yield Vertical(id="bone-question")
+                with Vertical(id="bone-editor", classes="editor"):
+                    yield Static("Bone name", classes="config-detail")
+                    yield Input(id="bone-name")
+                    yield Vertical(id="bone-question")
                 yield FieldList(
                     "Required bones", _EMPTY, id="bone-list", classes="field-list"
                 )
             with Vertical(id="parenting-column"):
-                with Vertical(id="parent-picker"):
-                    yield Static("Parent bones", classes="config-detail")
-                    yield SelectionList[str](id="parent-bones")
-                    yield Button("Choose children", id="choose-children")
-                yield Static(
-                    _NO_PARENTS, id="parent-bones-empty", classes="config-detail"
-                )
-                yield Static(
-                    _SKIPPED,
-                    id="parent-bones-skipped",
-                    classes="config-detail",
-                    markup=False,
-                )
-                yield Vertical(id="parent-question")
+                with Vertical(id="parenting-editor", classes="editor"):
+                    with Vertical(id="parent-picker"):
+                        yield Static("Parent bones", classes="config-detail")
+                        yield SelectionList[str](id="parent-bones")
+                        yield Button("Choose children", id="choose-children")
+                    yield Static(
+                        _SKIPPED,
+                        id="parent-bones-skipped",
+                        classes="config-detail",
+                        markup=False,
+                    )
+                    yield Vertical(id="parent-question")
                 yield FieldList(
                     "Parenting",
                     _NO_PARENTING,
@@ -174,35 +183,39 @@ class ArmatureFormScreen(Screen):
         except (OSError, ValueError):
             pass  # `_show_bones` reports it
         self.query_one("#armature-name", Input).value = self._saved_name
-        self.query_one("#bone-name", Input).focus()
+        self.query_one("#bone-list", FieldList).focus()
         self._show_bones()
 
     # -- bindings ----------------------------------------------------------
 
     async def action_back(self) -> None:
         self._status("")
-        if self._in_parenting():
+        if self._editing == "parenting":
             parents = self.query_one("#parent-bones", SelectionList)
             if self._picked:
                 await self._drop_children()
-                return
-            if parents.selected:
+            elif parents.selected:
                 parents.deselect_all()
-                return
-            if self._bone is None:
-                self.app.pop_screen()
-                return
+            else:
+                await self._close()
+            return
+        if self._editing == "bones":
+            await self._back_bone()
+            return
         armature_name = self.query_one("#armature-name", Input)
         if armature_name.has_focus and armature_name.value != self._saved_name:
             armature_name.value = self._saved_name
             return
+        self.app.pop_screen()
+
+    async def _back_bone(self) -> None:
+        name = self.query_one("#bone-name", Input)
         bone = self._bone
         if bone is None:
-            name = self.query_one("#bone-name", Input)
             if name.value:
                 name.value = ""
             else:
-                self.app.pop_screen()
+                await self._close()
             return
         if bone.history:
             segment, answer = bone.history.pop()
@@ -210,10 +223,49 @@ class ArmatureFormScreen(Screen):
             return
         self._bone = None
         await self._clear_question()
-        self.query_one("#bone-name", Input).focus()
+        name.focus()
 
     def action_noop(self) -> None:
         """Absorb `q` so the app's global quit can't fire mid-bone."""
+
+    # -- editors -----------------------------------------------------------
+
+    @on(FieldList.Selected)
+    async def _on_selected(self, event: FieldList.Selected) -> None:
+        await self._edit(_FIELDS[event.control.id or ""])
+
+    async def _edit(self, field: str) -> None:
+        """Open `field`'s editor, closing any other; one is open at a time."""
+        self._status("")
+        if field == "parenting" and not self._parents:
+            self._status(_SKIPPED if self._skipped else _NO_PARENTS)
+            return
+        if self._editing != field:
+            await self._close()
+            self._editing = field
+            self.query_one(_EDITORS[field]).display = True
+        self._focus_editor()
+
+    def _focus_editor(self) -> None:
+        if self._editing == "bones":
+            self.query_one("#bone-name", Input).focus()
+        elif self._editing == "parenting":
+            self.query_one("#child-bones" if self._picked else "#parent-bones").focus()
+
+    async def _close(self) -> None:
+        """Hide the open editor, dropping its in-progress state unwritten."""
+        field, self._editing = self._editing, None
+        if field is None:
+            return
+        if field == "bones":
+            self._bone = None
+            await self._clear_question()
+            self.query_one("#bone-name", Input).value = ""
+        else:
+            await self._drop_children()
+            self.query_one("#parent-bones", SelectionList).deselect_all()
+        self.query_one(_EDITORS[field]).display = False
+        self.query_one(_VIEWS[field], FieldList).focus()
 
     # -- the form ----------------------------------------------------------
 
@@ -229,7 +281,7 @@ class ArmatureFormScreen(Screen):
         self._saved_name = name
         event.input.value = name
         self._status("Armature name saved." if name else "Armature name cleared.")
-        if self._bone is None:
+        if self._editing == "bones" and self._bone is None:
             self.query_one("#bone-name", Input).focus()
 
     @on(Input.Submitted, "#bone-name")
@@ -477,16 +529,6 @@ class ArmatureFormScreen(Screen):
         if picker.display:
             self.query_one("#parent-bones", SelectionList).focus()
 
-    def _in_parenting(self) -> bool:
-        focused = self.focused
-        if focused is None:
-            return False
-        sections = (
-            self.query_one("#parent-picker"),
-            self.query_one("#parent-question"),
-        )
-        return any(section in focused.ancestors for section in sections)
-
     def _show_bones(self) -> None:
         try:
             document = store.read(self.path)
@@ -518,9 +560,8 @@ class ArmatureFormScreen(Screen):
         self.query_one("#parent-picker").display = (
             bool(self._parents) and not self._picked
         )
-        self.query_one("#parent-bones-empty").display = not required
-        skipped = len(self._parents) != len(required)
-        self.query_one("#parent-bones-skipped").display = skipped
+        self._skipped = len(self._parents) != len(required)
+        self.query_one("#parent-bones-skipped").display = self._skipped
 
     def _status(self, text: str) -> None:
         self.query_one("#bone-status", Static).update(text)
