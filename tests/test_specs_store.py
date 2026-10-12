@@ -306,6 +306,12 @@ def test_read_returns_the_document(tmp_path):
     assert store.bone_name_inverses(document) == {}
     assert store.armature_name(document) == ""
     assert store.parenting_map(document) == {}
+    assert store.mesh_roles(document) == {}
+
+
+def test_mesh_roles_defaults_when_the_key_is_missing(tmp_path):
+    path = _write(tmp_path, "vehicle", {"armature": {}})
+    assert store.mesh_roles(store.read(path)) == {}
 
 
 def test_parenting_map_defaults_when_the_key_is_missing(tmp_path):
@@ -345,6 +351,9 @@ def test_read_tolerates_a_spec_older_than_bone_name_inverses(tmp_path):
         {"armature": {"parenting": []}},
         {"armature": {"parenting": {"root": "axle"}}},
         {"armature": {"parenting": {"root": [3]}}},
+        {"mesh_roles": []},
+        {"mesh_roles": {"body": "body"}},
+        {"mesh_roles": {"body": {"vtx_grp": 3}}},
     ],
     ids=[
         "malformed",
@@ -358,6 +367,9 @@ def test_read_tolerates_a_spec_older_than_bone_name_inverses(tmp_path):
         "parenting-not-object",
         "parenting-not-lists",
         "parenting-not-strings",
+        "mesh-roles-not-object",
+        "mesh-role-not-object",
+        "vtx-grp-not-string",
     ],
 )
 def test_read_rejects_a_malformed_spec(tmp_path, payload):
@@ -465,3 +477,58 @@ def test_update_armature_refuses_a_malformed_spec_and_writes_nothing(tmp_path):
         store.update_armature(path, add_bones=["arm.L"])
 
     assert path.read_bytes() == before
+
+
+# --- add_mesh_role ---------------------------------------------------------
+
+
+def test_add_mesh_role_writes_the_role(tmp_path):
+    path = store.create(tmp_path, "vehicle")
+    store.add_mesh_role(path, "susarm_upper", "susarm.{1}.top.{2}")
+    store.add_mesh_role(path, "body", "body")
+
+    assert store.mesh_roles(store.read(path)) == {
+        "susarm_upper": {"vtx_grp": "susarm.{1}.top.{2}"},
+        "body": {"vtx_grp": "body"},
+    }
+
+
+def test_add_mesh_role_preserves_every_other_key(tmp_path):
+    document = schema.skeleton("vehicle")
+    document["armature"]["required_bones"] = ["body"]
+    document["mesh_roles"] = {"wheel": {"vtx_grp": "wheel", "weight": 1.0}}
+    document["hand_added"] = True
+    path = _write(tmp_path, "vehicle", document)
+
+    store.add_mesh_role(path, "body", "body")
+
+    after = json.loads(path.read_text(encoding="utf-8"))
+    document["mesh_roles"]["body"] = {"vtx_grp": "body"}
+    assert after == document
+
+
+def test_add_mesh_role_rejects_a_duplicate_and_writes_nothing(tmp_path):
+    path = store.create(tmp_path, "vehicle")
+    store.add_mesh_role(path, "body", "body")
+    before = path.read_bytes()
+
+    with pytest.raises(ValueError):
+        store.add_mesh_role(path, "body", "root")
+
+    assert path.read_bytes() == before
+
+
+def test_add_mesh_role_adds_the_key_to_an_older_spec(tmp_path):
+    path = _write(tmp_path, "vehicle", {"model_type": "vehicle"})
+    store.add_mesh_role(path, "body", "body")
+
+    assert json.loads(path.read_text(encoding="utf-8"))["mesh_roles"] == {
+        "body": {"vtx_grp": "body"}
+    }
+
+
+def test_add_mesh_role_leaves_no_tmp_behind(tmp_path):
+    path = store.create(tmp_path, "vehicle")
+    store.add_mesh_role(path, "body", "body")
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["vehicle.json"]

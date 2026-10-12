@@ -1,9 +1,10 @@
 """Read and write the spec files in a specs directory.
 
-`create` writes a new spec and refuses to overwrite; `update_armature` patches
-an existing one with an atomic replace. `read`, `list_specs` and `count` are
-read-only and never create the directory — a fresh install has no empty
-`specs/` folder sitting in its config directory until the user makes a spec.
+`create` writes a new spec and refuses to overwrite; `update_armature` and
+`add_mesh_role` patch an existing one with an atomic replace. `read`,
+`list_specs` and `count` are read-only and never create the directory — a fresh
+install has no empty `specs/` folder sitting in its config directory until the
+user makes a spec.
 """
 
 from __future__ import annotations
@@ -59,6 +60,7 @@ def read(path: Path) -> dict:
     if not isinstance(document, dict):
         raise ValueError("The spec is not a JSON object.")
     _check_armature(document.get("armature", {}))
+    _check_mesh_roles(document.get("mesh_roles", {}))
     return document
 
 
@@ -80,6 +82,11 @@ def parenting_map(document: dict) -> dict[str, list[str]]:
 def armature_name(document: dict) -> str:
     """`armature.object_name` of a document `read` returned."""
     return document.get("armature", {}).get("object_name", "")
+
+
+def mesh_roles(document: dict) -> dict[str, dict]:
+    """`mesh_roles` of a document `read` returned."""
+    return document.get("mesh_roles", {})
 
 
 def update_armature(
@@ -114,6 +121,20 @@ def update_armature(
         armature["parenting"] = parenting.merge(
             armature.get("parenting", {}), add_parenting
         )
+    _replace(path, document)
+
+
+def add_mesh_role(path: Path, name: str, vtx_grp: str) -> None:
+    """Re-read the spec and add one mesh role, touching nothing else.
+
+    Raises `ValueError` if `name` is already a role, or like `read`, or
+    `OSError` on write.
+    """
+    document = read(path)
+    roles = document.setdefault("mesh_roles", {})
+    if name in roles:
+        raise ValueError(f"'{name}' is already a mesh role.")
+    roles[name] = {"vtx_grp": vtx_grp}
     _replace(path, document)
 
 
@@ -170,6 +191,16 @@ def _check_armature(armature: object) -> None:
         )
     ):
         raise ValueError("`armature.parenting` is not a map of string lists.")
+
+
+def _check_mesh_roles(roles: object) -> None:
+    """Raise `ValueError` unless `mesh_roles` is a map of objects, `vtx_grp` a string."""
+    if not (
+        isinstance(roles, dict) and all(isinstance(r, dict) for r in roles.values())
+    ):
+        raise ValueError("`mesh_roles` is not a map of objects.")
+    if not all(isinstance(r.get("vtx_grp", ""), str) for r in roles.values()):
+        raise ValueError("A mesh role's `vtx_grp` is not a string.")
 
 
 def _replace(path: Path, document: dict) -> None:
