@@ -430,3 +430,155 @@ async def test_q_does_not_quit_from_the_add_button(tmp_path, monkeypatch):
         await pilot.press("q")
         await pilot.pause()
         assert app.is_running
+
+
+# --- parenting -------------------------------------------------------------
+
+CORNERS = ["front.L", "front.R", "rear.L", "rear.R"]
+RIG = [
+    "root",
+    *(f"axle.{c}" for c in CORNERS),
+    *(f"wheel.{c}" for c in CORNERS),
+    *(f"shockmount.body.{c}" for c in CORNERS),
+    *(f"shockmount.wheel.{c}" for c in CORNERS),
+]
+RIG_INVERSES = {**FRONT_REAR, ".body": ".wheel", ".wheel": ".body"}
+
+
+def _rig(tmp_path, parenting=None):
+    path = _spec(tmp_path)
+    specs_store.update_armature(
+        path, add_bones=RIG, set_inverses=RIG_INVERSES, add_parenting=parenting
+    )
+    return path
+
+
+async def _pick(pilot, app, parent):
+    await pilot.press("tab")
+    assert _focused_id(app) == "parent-bones"
+    app.screen.query_one("#parent-bones").highlighted = app.screen._parents.index(
+        parent
+    )
+    await pilot.press("enter")
+    await pilot.pause()
+
+
+def _children(app):
+    (checklist,) = app.screen.query("#child-bones")
+    return [
+        checklist.get_option_at_index(i).value for i in range(checklist.option_count)
+    ]
+
+
+def _parenting_rows(app):
+    return [str(row.render()) for row in app.screen.query(".parenting-row")]
+
+
+async def test_parenting_section_empty_states(tmp_path, monkeypatch):
+    path = _spec(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path)
+        assert not app.screen.query_one("#parent-bones").display
+        assert app.screen.query_one("#parent-bones-empty").display
+        assert app.screen.query_one("#parenting-list-empty")
+
+
+async def test_mirrored_parent_end_to_end(tmp_path, monkeypatch):
+    path = _rig(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 50)) as pilot:
+        await _open(pilot, app, path)
+        await _pick(pilot, app, "axle.front.L")
+        assert _focused_id(app) == "child-bones"
+
+        checklist = app.screen.query_one("#child-bones", SelectionList)
+        checklist.select("wheel.front.L")
+        checklist.select("shockmount.wheel.front.L")
+        await pilot.pause()
+        preview = str(app.screen.query_one("#parenting-preview", Static).render())
+        assert "axle.{1}.{2} → wheel.{1}.{2}, shockmount.wheel.{1}.{2}" in preview
+        assert "8 pairs" in preview
+
+        app.screen.query_one("#add-children").press()
+        assert await _wait_for(pilot, lambda: _status(app) == "Parenting saved.")
+        assert _armature(path)["parenting"] == {
+            "axle.{1}.{2}": ["wheel.{1}.{2}", "shockmount.wheel.{1}.{2}"]
+        }
+        assert _focused_id(app) == "parent-bones"
+        assert not app.screen.query("#child-bones")
+        assert _parenting_rows(app) == [
+            "axle.{1}.{2} → wheel.{1}.{2}, shockmount.wheel.{1}.{2}"
+        ]
+
+
+async def test_children_exclude_parented_bones_and_ancestors(tmp_path, monkeypatch):
+    path = _rig(tmp_path, {"root": ["axle.{1}.{2}"]})
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 50)) as pilot:
+        await _open(pilot, app, path)
+        await _pick(pilot, app, "axle.front.L")
+        children = _children(app)
+        assert "root" not in children
+        assert not any(name.startswith("axle.") for name in children)
+        assert "wheel.front.L" in children
+
+
+async def test_add_with_nothing_checked_writes_nothing(tmp_path, monkeypatch):
+    path = _rig(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 50)) as pilot:
+        await _open(pilot, app, path)
+        before = path.read_bytes()
+        await _pick(pilot, app, "root")
+        app.screen.query_one("#add-children").press()
+        await pilot.pause()
+        assert _status(app) == "Check at least one child."
+        assert path.read_bytes() == before
+
+
+async def test_no_eligible_children_shows_a_status(tmp_path, monkeypatch):
+    path = _spec(tmp_path)
+    specs_store.update_armature(
+        path, add_bones=["root", "body"], add_parenting={"root": ["body"]}
+    )
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path)
+        await _pick(pilot, app, "root")
+        assert _status(app) == "Every other bone already has a parent."
+        assert not app.screen.query("#child-bones")
+
+
+async def test_parenting_escape_drops_the_pick_then_leaves(tmp_path, monkeypatch):
+    path = _rig(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 50)) as pilot:
+        await _open(pilot, app, path)
+        before = path.read_bytes()
+        await _pick(pilot, app, "root")
+        app.screen.query_one("#child-bones", SelectionList).select("axle.front.L")
+        await pilot.pause()
+        assert not app.screen.query_one("#parent-bones").display
+
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not app.screen.query("#child-bones")
+        assert app.screen.query_one("#parent-bones").display
+        assert _focused_id(app) == "parent-bones"
+        assert path.read_bytes() == before
+
+        await pilot.press("escape")
+        assert await _wait_for(
+            pilot, lambda: not isinstance(app.screen, ArmatureFormScreen)
+        )
+
+
+async def test_new_bone_refreshes_the_parent_list(tmp_path, monkeypatch):
+    path = _spec(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path)
+        await _type(pilot, "body")
+        assert app.screen._parents == ["body"]
+        assert app.screen.query_one("#parent-bones").display

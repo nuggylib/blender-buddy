@@ -7,6 +7,10 @@ lives in `specs.bones`; this screen only sequences it and writes via
 
 **Full chain first:** variants are computed only once `next_missing` returns
 `None`, and a bone's pending inverse answers are written together, once.
+
+Parenting: pick a parent from the required bones, check its children, and Add
+writes what `specs.parenting.infer` returns — the same call the live preview
+shows, so the preview is exactly what gets written.
 """
 
 from __future__ import annotations
@@ -19,13 +23,25 @@ from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Button, Footer, Header, Input, SelectionList, Static
+from textual.widgets import (
+    Button,
+    Footer,
+    Header,
+    Input,
+    OptionList,
+    SelectionList,
+    Static,
+)
+from textual.widgets.option_list import Option
 
-from blender_buddy.specs import bones, store
+from blender_buddy.specs import bones, parenting, store
 
 _EMPTY = "No required bones yet."
+_NO_PARENTING = "No parenting yet."
+_NO_PARENTS = "Add required bones first."
+_SKIPPED = "Bones with a `{n}` segment can't be parented."
 
 
 @dataclass
@@ -70,23 +86,39 @@ class ArmatureFormScreen(Screen):
         height: auto;
         padding: 1 2 0 2;
     }
-    ArmatureFormScreen #bone-question {
+    ArmatureFormScreen #bone-status {
+        height: auto;
+    }
+    ArmatureFormScreen #armature-columns {
+        height: 1fr;
+        padding: 0 2;
+    }
+    ArmatureFormScreen #armature-columns > Vertical {
+        width: 1fr;
+    }
+    ArmatureFormScreen #bone-column {
+        margin-right: 2;
+    }
+    ArmatureFormScreen #bone-question, ArmatureFormScreen #parent-question {
         height: auto;
     }
     ArmatureFormScreen #bone-variants {
         height: auto;
         max-height: 12;
     }
-    ArmatureFormScreen #bone-status {
+    ArmatureFormScreen #parent-bones {
         height: auto;
+        max-height: 8;
     }
-    ArmatureFormScreen #bone-list-title {
+    ArmatureFormScreen #child-bones {
+        height: auto;
+        max-height: 8;
+    }
+    ArmatureFormScreen #bone-list-title, ArmatureFormScreen #parenting-list-title {
         margin-top: 1;
-        padding: 0 2;
     }
-    ArmatureFormScreen #bone-list {
+    ArmatureFormScreen #bone-list, ArmatureFormScreen #parenting-list {
         height: 1fr;
-        padding: 0 2;
     }
     """
 
@@ -95,6 +127,8 @@ class ArmatureFormScreen(Screen):
         self.path = path
         self._bone: _Bone | None = None
         self._saved_name = ""
+        self._parents: list[str] = []
+        self._picked: str | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -104,12 +138,33 @@ class ArmatureFormScreen(Screen):
             )
             yield Static("Armature name", classes="config-detail")
             yield Input(id="armature-name")
-            yield Static("Bone name", classes="config-detail")
-            yield Input(id="bone-name")
-            yield Vertical(id="bone-question")
             yield Static("", id="bone-status", classes="config-detail", markup=False)
-        yield Static("Required bones", id="bone-list-title", classes="section-title")
-        yield VerticalScroll(id="bone-list", can_focus=False)
+        with Horizontal(id="armature-columns"):
+            with Vertical(id="bone-column"):
+                yield Static("Bone name", classes="config-detail")
+                yield Input(id="bone-name")
+                yield Vertical(id="bone-question")
+                yield Static(
+                    "Required bones", id="bone-list-title", classes="section-title"
+                )
+                yield VerticalScroll(id="bone-list", can_focus=False)
+            with Vertical(id="parenting-column"):
+                yield Static("Parent bone", classes="config-detail")
+                yield OptionList(id="parent-bones")
+                yield Static(
+                    _NO_PARENTS, id="parent-bones-empty", classes="config-detail"
+                )
+                yield Static(
+                    _SKIPPED,
+                    id="parent-bones-skipped",
+                    classes="config-detail",
+                    markup=False,
+                )
+                yield Vertical(id="parent-question")
+                yield Static(
+                    "Parenting", id="parenting-list-title", classes="section-title"
+                )
+                yield VerticalScroll(id="parenting-list", can_focus=False)
         yield Footer()
 
     async def on_mount(self) -> None:
@@ -125,6 +180,12 @@ class ArmatureFormScreen(Screen):
 
     async def action_back(self) -> None:
         self._status("")
+        if self._in_parenting() and (self._picked or self._bone is None):
+            if self._picked is None:
+                self.app.pop_screen()
+            else:
+                await self._drop_parent()
+            return
         armature_name = self.query_one("#armature-name", Input)
         if armature_name.has_focus and armature_name.value != self._saved_name:
             armature_name.value = self._saved_name
@@ -210,6 +271,100 @@ class ArmatureFormScreen(Screen):
         selected = set(self.query_one("#bone-variants", SelectionList).selected)
         await self._add([name for name in bone.choices if name in selected])
 
+    @on(OptionList.OptionSelected, "#parent-bones")
+    async def _on_parent(self, event: OptionList.OptionSelected) -> None:
+        self._status("")
+        await self._drop_parent()
+        parent = self._parents[event.option_index]
+        try:
+            document = store.read(self.path)
+        except (OSError, ValueError) as error:
+            self._status(f"Could not read the spec: {_reason(error)}")
+            return
+        required = store.required_bones(document)
+        resolved = parenting.resolve(store.parenting_map(document), required)
+        above = parenting.ancestors(parent, resolved)
+        eligible = [
+            name
+            for name in required
+            if name != parent
+            and name not in resolved
+            and name not in above
+            and not parenting.has_placeholder_segment(name)
+        ]
+        if not eligible:
+            self._status("Every other bone already has a parent.")
+            return
+        self._picked = parent
+        self.query_one("#parent-bones", OptionList).display = False
+        children = SelectionList[str](
+            *((Text(name), name, False) for name in eligible), id="child-bones"
+        )
+        await self.query_one("#parent-question", Vertical).mount(
+            Static(
+                f"Children of `{parent}`",
+                id="child-bones-label",
+                classes="config-detail",
+                markup=False,
+            ),
+            children,
+            Static("", id="parenting-preview", classes="config-detail", markup=False),
+            Button("Add", id="add-children", variant="primary"),
+        )
+        children.focus()
+
+    @on(SelectionList.SelectedChanged, "#child-bones")
+    def _on_children_changed(self) -> None:
+        preview = self.query_one("#parenting-preview", Static)
+        result = self._infer()
+        if result is None or not result[1]:
+            preview.update("")
+            return
+        required, entries, _ = result
+        count = len(parenting.pairs(entries, required))
+        preview.update("\n".join([*_entry_lines(entries), f"{count} pairs"]))
+
+    @on(Button.Pressed, "#add-children")
+    async def _on_add_children(self) -> None:
+        self._status("")
+        result = self._infer()
+        if result is None:
+            return
+        required, entries, current = result
+        if not entries:
+            self._status("Check at least one child.")
+            return
+        if not parenting.is_valid(parenting.merge(current, entries), required):
+            self._status("The spec changed — pick the parent again.")
+            return
+        if not self._write(add_parenting=entries):
+            return
+        await self._drop_parent()
+        await self._show_bones()
+        self._status("Parenting saved.")
+
+    def _infer(
+        self,
+    ) -> tuple[list[str], dict[str, list[str]], dict[str, list[str]]] | None:
+        """(required, inferred entries, current map) from a fresh read, or `None`."""
+        if self._picked is None:
+            return None
+        try:
+            document = store.read(self.path)
+        except (OSError, ValueError) as error:
+            self._status(f"Could not read the spec: {_reason(error)}")
+            return None
+        required = store.required_bones(document)
+        current = store.parenting_map(document)
+        entries = parenting.infer(
+            self._picked,
+            self.query_one("#child-bones", SelectionList).selected,
+            required,
+            store.bone_name_inverses(document),
+            current,
+        )
+        return required, entries, current
+
     async def _advance(self) -> bool:
         """Ask the next unmapped segment, or finish the chain. False on failure."""
         bone = self._bone
@@ -292,21 +447,67 @@ class ArmatureFormScreen(Screen):
     async def _clear_question(self) -> None:
         await self.query_one("#bone-question", Vertical).remove_children()
 
+    async def _drop_parent(self) -> None:
+        self._picked = None
+        await self.query_one("#parent-question", Vertical).remove_children()
+        parents = self.query_one("#parent-bones", OptionList)
+        parents.display = bool(self._parents)
+        if parents.display:
+            parents.focus()
+
+    def _in_parenting(self) -> bool:
+        focused = self.focused
+        if focused is None:
+            return False
+        question = self.query_one("#parent-question", Vertical)
+        return focused.id == "parent-bones" or question in focused.ancestors
+
     async def _show_bones(self) -> None:
         try:
-            required = store.required_bones(store.read(self.path))
+            document = store.read(self.path)
         except (OSError, ValueError) as error:
             self._status(f"Could not read the spec: {_reason(error)}")
             return
+        required = store.required_bones(document)
         rows = [
             Static(name, classes="bone-row", markup=False) for name in required
         ] or [Static(_EMPTY, id="bone-list-empty", classes="config-detail")]
         bone_list = self.query_one("#bone-list", VerticalScroll)
         await bone_list.remove_children()
         await bone_list.mount_all(rows)
+        self._show_parents(required)
+        await self._show_parenting(store.parenting_map(document))
+
+    def _show_parents(self, required: list[str]) -> None:
+        self._parents = [
+            name for name in required if not parenting.has_placeholder_segment(name)
+        ]
+        parents = self.query_one("#parent-bones", OptionList)
+        highlighted = parents.highlighted
+        parents.clear_options()
+        parents.add_options([Option(Text(name)) for name in self._parents])
+        if self._parents:
+            parents.highlighted = min(highlighted or 0, len(self._parents) - 1)
+        parents.display = bool(self._parents) and self._picked is None
+        self.query_one("#parent-bones-empty").display = not required
+        skipped = len(self._parents) != len(required)
+        self.query_one("#parent-bones-skipped").display = skipped
+
+    async def _show_parenting(self, entries: dict[str, list[str]]) -> None:
+        rows = [
+            Static(line, classes="parenting-row", markup=False)
+            for line in _entry_lines(entries)
+        ] or [Static(_NO_PARENTING, id="parenting-list-empty", classes="config-detail")]
+        parenting_list = self.query_one("#parenting-list", VerticalScroll)
+        await parenting_list.remove_children()
+        await parenting_list.mount_all(rows)
 
     def _status(self, text: str) -> None:
         self.query_one("#bone-status", Static).update(text)
+
+
+def _entry_lines(entries: dict[str, list[str]]) -> list[str]:
+    return [f"{key} → {', '.join(patterns)}" for key, patterns in entries.items()]
 
 
 def _reason(error: Exception) -> str:
