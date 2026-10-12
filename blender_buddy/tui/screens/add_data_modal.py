@@ -46,7 +46,7 @@ class AddDataModal(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Static("Add data to…", classes="section-title")
+            yield Static("Edit data…", classes="section-title")
             yield OptionList(
                 *(Option(label, id=key) for key, label in FIELDS), id="data-fields"
             )
