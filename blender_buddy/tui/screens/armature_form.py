@@ -119,6 +119,9 @@ class ArmatureFormScreen(Screen):
     ArmatureFormScreen #bone-list, ArmatureFormScreen #parenting-list {
         height: 1fr;
     }
+    ArmatureFormScreen .parenting-child {
+        padding-left: 2;
+    }
     """
 
     def __init__(self, path: Path) -> None:
@@ -335,7 +338,8 @@ class ArmatureFormScreen(Screen):
             return
         required, entries, _ = result
         count = len(parenting.pairs(entries, required))
-        preview.update("\n".join([*_entry_lines(entries), f"{count} pairs"]))
+        lines = ["  " * depth + text for text, depth in _entry_lines(entries)]
+        preview.update("\n".join([*lines, f"{count} pairs"]))
 
     @on(Button.Pressed, "#add-children")
     async def _on_add_children(self) -> None:
@@ -524,8 +528,12 @@ class ArmatureFormScreen(Screen):
 
     async def _show_parenting(self, entries: dict[str, list[str]]) -> None:
         rows = [
-            Static(line, classes="parenting-row", markup=False)
-            for line in _entry_lines(entries)
+            Static(
+                text,
+                classes="parenting-row parenting-child" if depth else "parenting-row",
+                markup=False,
+            )
+            for text, depth in _entry_lines(entries)
         ] or [Static(_NO_PARENTING, id="parenting-list-empty", classes="config-detail")]
         parenting_list = self.query_one("#parenting-list", VerticalScroll)
         await parenting_list.remove_children()
@@ -535,8 +543,13 @@ class ArmatureFormScreen(Screen):
         self.query_one("#bone-status", Static).update(text)
 
 
-def _entry_lines(entries: dict[str, list[str]]) -> list[str]:
-    return [f"{key} → {', '.join(patterns)}" for key, patterns in entries.items()]
+def _entry_lines(entries: dict[str, list[str]]) -> list[tuple[str, int]]:
+    """Each key at depth 0, followed by its child patterns at depth 1."""
+    return [
+        line
+        for key, patterns in entries.items()
+        for line in [(key, 0), *((pattern, 1) for pattern in patterns)]
+    ]
 
 
 def _reason(error: Exception) -> str:

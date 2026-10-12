@@ -477,7 +477,10 @@ def _children(app):
 
 
 def _parenting_rows(app):
-    return [str(row.render()) for row in app.screen.query(".parenting-row")]
+    return [
+        ("  " if row.has_class("parenting-child") else "") + str(row.render())
+        for row in app.screen.query(".parenting-row")
+    ]
 
 
 async def test_parenting_section_empty_states(tmp_path, monkeypatch):
@@ -504,7 +507,9 @@ async def test_checked_parents_end_to_end(tmp_path, monkeypatch):
             checklist.select(child)
         await pilot.pause()
         preview = str(app.screen.query_one("#parenting-preview", Static).render())
-        assert "axle.{1}.{2} → wheel.{1}.{2}, shockmount.wheel.{1}.{2}" in preview
+        assert preview.startswith(
+            "axle.{1}.{2}\n  wheel.{1}.{2}\n  shockmount.wheel.{1}.{2}\n"
+        )
         assert "8 pairs" in preview
 
         app.screen.query_one("#add-children").press()
@@ -516,7 +521,9 @@ async def test_checked_parents_end_to_end(tmp_path, monkeypatch):
         assert app.screen.query_one("#parent-bones", SelectionList).selected == []
         assert not app.screen.query("#child-bones")
         assert _parenting_rows(app) == [
-            "axle.{1}.{2} → wheel.{1}.{2}, shockmount.wheel.{1}.{2}"
+            "axle.{1}.{2}",
+            "  wheel.{1}.{2}",
+            "  shockmount.wheel.{1}.{2}",
         ]
 
 
