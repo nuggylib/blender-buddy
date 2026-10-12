@@ -454,7 +454,9 @@ async def test_setup_key_is_unbound_off_the_dashboard(tmp_path, monkeypatch, scr
     async with app.run_test() as pilot:
         await pilot.pause()
         await app.push_screen(
-            SpecDetailScreen("vehicle") if screen == "spec-detail" else screen
+            SpecDetailScreen("vehicle", tmp_path / "specs" / "vehicle.json")
+            if screen == "spec-detail"
+            else screen
         )
         await pilot.pause()
         pushed = app.screen

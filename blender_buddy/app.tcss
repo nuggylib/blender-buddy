@@ -63,6 +63,22 @@ DashboardScreen .section:focus {
     margin-top: 1;
 }
 
+/* -- spec detail screen -------------------------------------------------- */
+
+/* One box per spec root field (FieldSummary); the field name sits in the border. */
+SpecDetailScreen #spec-title {
+    margin-bottom: 1;
+}
+
+SpecDetailScreen .field-summary {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1;
+    padding: 0 1;
+    border: round $panel;
+    border-title-color: $accent;
+}
+
 /* -- Specs screen -------------------------------------------------------- */
 
 SpecsScreen #specs-summary,

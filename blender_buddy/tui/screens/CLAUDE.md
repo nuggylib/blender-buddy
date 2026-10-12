@@ -90,16 +90,41 @@ in the app (analogous to a route in a web app).
   It reads `self.app.specs_dir`, a path derived from the config *path* rather
   than its contents, so the page lists and works identically in every config
   state.
-- `spec_detail.py` — `SpecDetailScreen`, the per-spec detail view opened by
-  `enter` on a `SpecRow`. A **stub**, like `blender_detail.py`: a `#spec-title`
-  naming the spec and a `#placeholder-note`, reusing their ids and classes so it
-  needs no CSS of its own. It takes the spec's `model_type` — the filename stem,
-  the spec's identity — as a **constructor argument** and is **not** in
-  `SCREENS` (see Conventions). The stem is the identity, so there is nothing to
-  read from the file to title the page, which is why the screen touches no
-  filesystem at all. It takes the name alone, not the `Path` — with no filename
-  line and no file read, a path would be an argument nothing uses, and
-  `SpecRow.Selected` carries both when something needs it. Nothing on the page is focusable.
+- `spec_detail.py` — `SpecDetailScreen(model_type, path)`, the per-spec detail
+  view opened by `enter` on a `SpecRow`. Not in `SCREENS` (see Conventions).
+  Summarizes each root field in a non-focusable `FieldSummary` box — Armature
+  shows `Name` (`object_name`, or `not set`) and `Bones` (a count). It never
+  lists bones; the full list lives on `armature_form.py`. The spec is one small
+  file, read inline via `specs.store.read` and **re-read on
+  `on_screen_resume`** so it reflects what a form wrote. A spec `read` rejects
+  hides every summary, shows the page-level `#spec-unreadable`, and
+  `check_action` disables `a`. `a` (**Add data**) runs a
+  `@work(exclusive=True, group="add-data")` worker:
+  `push_screen_wait(AddDataModal())`, then `"armature"` →
+  `ArmatureFormScreen(path)`. A new root field is one `FIELDS` entry in the
+  picker, one route here, and one `FieldSummary` with its rows.
+- `add_data_modal.py` — `AddDataModal(ModalScreen[str | None])`: an
+  `OptionList` of spec root fields from `FIELDS` (keys are `schema.skeleton`
+  root keys; only Armature today). Returns the key, or `None` on `escape`.
+  Writes nothing. Own `Footer`, `q` shadowed — `NewSpecModal`'s shape.
+- `armature_form.py` — `ArmatureFormScreen(path)`, a full `Screen` the user
+  stays on to name the armature and add bone after bone. `#armature-name`
+  sits above the bone field, prefilled from `object_name`. Focus still opens
+  on `#bone-name`, so the name is one shift-tab away. Enter saves the name
+  (blank clears it, over 63 bytes is rejected) and returns focus to
+  `#bone-name`. `escape` there first reverts an unsaved edit. Enter in
+  `#bone-name` validates, then asks
+  one `#bone-inverse` question per segment `specs.bones.next_missing` returns
+  (relabeled each time; blank = no inverse). **Full chain first:** answers
+  stay pending until the last one, then one `update_armature` writes them all
+  (dropping pairs this bone wrote before, so a Back re-answer replaces them)
+  and only then are `variants` computed into a pre-checked `#bone-variants`
+  checklist with focus on **Add**. The checklist is skipped when there is
+  nothing to choose. **Write-on-confirm** — no separate Save. `escape` steps
+  back one question mid-bone, clears an idle name field with text, and leaves
+  from an empty one. Failures keep the field's text, show `#bone-status`, and
+  write nothing. User-typed names render with `markup=False`
+  (`rich.markup.escape` misses uppercase tags like `[L]`).
 - `blender_detail.py`, `godot_detail.py` — the other two detail screens
   (`blender-detail`, `godot-detail` in `SCREENS`). Still **placeholders**: they
   render the configured value they own plus a `#placeholder-note`. They exist so
@@ -170,12 +195,12 @@ in the app (analogous to a route in a web app).
   config-derived pages when it is, so they carry no `None` fallback. `specs.py`
   reads no settings at all — only `self.app.specs_dir` — so it works in every
   config state.
-  `spec_detail.py` is the named exemption:
-  it is *per spec*, with no app-level "current spec" to read, so it takes the
-  spec as a constructor argument and is **not** registered in `SCREENS` — the
+  `spec_detail.py` and `armature_form.py` are the named exemptions:
+  they are *per spec*, with no app-level "current spec" to read, so they take
+  the spec as a constructor argument and are **not** registered in `SCREENS` — the
   `SetupWizard` / `NewSpecModal` shape, minus the return value. Adding a
   `current_spec` to app state would be persisting a selected spec, which nothing
-  asks for. The rule's purpose holds because nothing in `SCREENS` names it.
+  asks for. The rule's purpose holds because nothing in `SCREENS` names them.
 - **Setup (`s` → `app.open_setup`) is bound on the dashboard only.** No other
   screen offers it, nor tells the user to press `s`.
 - **Screens read `self.app.specs_dir`, never `config.paths` directly** — the
