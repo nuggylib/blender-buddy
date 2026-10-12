@@ -180,3 +180,20 @@ ModelsScreen #fix-panel {
     padding: 0 2;
     border-top: solid $panel;
 }
+
+/* -- armature form ------------------------------------------------------- */
+
+/* One box per field (FieldList); the border turns accent when it's selected. */
+ArmatureFormScreen .field-list {
+    padding: 0 1;
+    border: round $panel;
+    border-title-color: $accent;
+}
+
+ArmatureFormScreen .field-list:focus {
+    border: round $accent;
+}
+
+ArmatureFormScreen .field-list-child {
+    padding-left: 2;
+}

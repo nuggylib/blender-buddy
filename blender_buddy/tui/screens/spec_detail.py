@@ -1,8 +1,8 @@
-"""The spec detail screen — one spec's contents, and the way to add to them.
+"""The spec detail screen — one spec's contents, and the way to edit them.
 
 Summarizes each root field in a `FieldSummary` (Armature: name and bone count;
-the full bone list lives on the armature form). `a` (**Add data**) opens
-`AddDataModal`, a picker of the spec's root fields, and routes the choice to
+the full bone list lives on the armature form). `e` (**Edit data**) opens
+`EditDataModal`, a picker of the spec's root fields, and routes the choice to
 that field's form. The spec is one small file, read inline (like
 `NewSpecModal`'s inline write) and re-read on every resume so it reflects
 whatever a form wrote.
@@ -21,8 +21,8 @@ from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
 
 from blender_buddy.specs import store
-from blender_buddy.tui.screens.add_data_modal import AddDataModal
 from blender_buddy.tui.screens.armature_form import ArmatureFormScreen
+from blender_buddy.tui.screens.edit_data_modal import EditDataModal
 from blender_buddy.tui.widgets.field_summary import FieldSummary
 
 _UNREADABLE = "This spec can't be read — see the fix steps on the Specs page."
@@ -38,7 +38,7 @@ class SpecDetailScreen(Screen):
 
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
-        Binding("a", "add_data", "Add data"),
+        Binding("e", "edit_data", "Edit data"),
     ]
 
     def __init__(self, model_type: str, path: Path) -> None:
@@ -70,20 +70,20 @@ class SpecDetailScreen(Screen):
         self._show_fields()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        """`a` is disabled while the spec can't be read."""
-        if action == "add_data" and not self._readable:
+        """`e` is disabled while the spec can't be read."""
+        if action == "edit_data" and not self._readable:
             return None
         return True
 
-    # -- add data ----------------------------------------------------------
+    # -- edit data ---------------------------------------------------------
 
-    def action_add_data(self) -> None:
-        self._add_data()
+    def action_edit_data(self) -> None:
+        self._edit_data()
 
-    @work(exclusive=True, group="add-data")
-    async def _add_data(self) -> None:
+    @work(exclusive=True, group="edit-data")
+    async def _edit_data(self) -> None:
         """Pick a root field, then open its form. Armature is the only route."""
-        field = await self.app.push_screen_wait(AddDataModal())
+        field = await self.app.push_screen_wait(EditDataModal())
         if field == "armature":
             self.app.push_screen(ArmatureFormScreen(self.path))
 

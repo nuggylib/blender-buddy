@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
 
-from blender_buddy.specs import naming, schema
+from blender_buddy.specs import naming, parenting, schema
 
 SPEC_GLOB = f"*{naming.SUFFIX}"
 
@@ -72,6 +72,11 @@ def bone_name_inverses(document: dict) -> dict[str, str]:
     return document.get("armature", {}).get("bone_name_inverses", {})
 
 
+def parenting_map(document: dict) -> dict[str, list[str]]:
+    """`armature.parenting` of a document `read` returned."""
+    return document.get("armature", {}).get("parenting", {})
+
+
 def armature_name(document: dict) -> str:
     """`armature.object_name` of a document `read` returned."""
     return document.get("armature", {}).get("object_name", "")
@@ -84,11 +89,13 @@ def update_armature(
     set_inverses: Mapping[str, str] | None = None,
     drop_inverses: Iterable[str] = (),
     object_name: str | None = None,
+    add_parenting: Mapping[str, Sequence[str]] | None = None,
 ) -> None:
     """Re-read the spec and patch only the armature keys passed.
 
     Bones append in order, skipping ones already present. Drops apply before
-    sets. `object_name` is left alone when `None`. Raises like `read`, or
+    sets. `add_parenting` appends child patterns per key, deduped.
+    `object_name` is left alone when `None`. Raises like `read`, or
     `OSError` on write.
     """
     document = read(path)
@@ -103,6 +110,10 @@ def update_armature(
     for segment in drop_inverses:
         inverses.pop(segment, None)
     inverses.update(set_inverses or {})
+    if add_parenting:
+        armature["parenting"] = parenting.merge(
+            armature.get("parenting", {}), add_parenting
+        )
     _replace(path, document)
 
 
@@ -150,6 +161,15 @@ def _check_armature(armature: object) -> None:
         and all(isinstance(v, str) for v in inverses.values())
     ):
         raise ValueError("`armature.bone_name_inverses` is not a string map.")
+    entries = armature.get("parenting", {})
+    if not (
+        isinstance(entries, dict)
+        and all(
+            isinstance(v, list) and all(isinstance(p, str) for p in v)
+            for v in entries.values()
+        )
+    ):
+        raise ValueError("`armature.parenting` is not a map of string lists.")
 
 
 def _replace(path: Path, document: dict) -> None:

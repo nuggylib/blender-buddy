@@ -1,4 +1,4 @@
-"""The add-data modal — pick which root field of a spec to add data to."""
+"""The edit-data modal — pick which root field of a spec to edit."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ from textual.widgets import Footer, OptionList, Static
 from textual.widgets.option_list import Option
 
 # (spec root key, label). A new root field is one entry here plus one route in
-# `SpecDetailScreen._add_data`.
+# `SpecDetailScreen._edit_data`.
 FIELDS = (("armature", "Armature"),)
 
 
-class AddDataModal(ModalScreen[str | None]):
+class EditDataModal(ModalScreen[str | None]):
     """Return the chosen root-field key, or `None` on `escape`. Writes nothing.
 
     Composes its own `Footer` and shadows `q`, like `NewSpecModal`.
@@ -27,10 +27,10 @@ class AddDataModal(ModalScreen[str | None]):
     ]
 
     DEFAULT_CSS = """
-    AddDataModal {
+    EditDataModal {
         align: center middle;
     }
-    AddDataModal > Vertical {
+    EditDataModal > Vertical {
         width: 80%;
         max-width: 50;
         height: auto;
@@ -38,7 +38,7 @@ class AddDataModal(ModalScreen[str | None]):
         border: round $accent;
         background: $surface;
     }
-    AddDataModal OptionList {
+    EditDataModal OptionList {
         margin-top: 1;
         height: auto;
     }
@@ -46,7 +46,7 @@ class AddDataModal(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Static("Add data to…", classes="section-title")
+            yield Static("Edit data…", classes="section-title")
             yield OptionList(
                 *(Option(label, id=key) for key, label in FIELDS), id="data-fields"
             )

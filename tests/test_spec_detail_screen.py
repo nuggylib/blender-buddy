@@ -4,7 +4,7 @@ Driven through the pilot from the Specs page, because `enter` on a row is the
 only way in — the screen is pushed as an instance and is not in `SCREENS`.
 
 It reads the spec to summarize the armature (name and bone count); a malformed
-spec shows an unreadable line in place of the summary, with `a` disabled.
+spec shows an unreadable line in place of the summary, with `e` disabled.
 """
 
 import json
@@ -17,8 +17,8 @@ from blender_buddy.config.settings import Settings
 from blender_buddy.godot import discovery
 from blender_buddy.specs import schema
 from blender_buddy.specs import store as specs_store
-from blender_buddy.tui.screens.add_data_modal import AddDataModal
 from blender_buddy.tui.screens.armature_form import ArmatureFormScreen
+from blender_buddy.tui.screens.edit_data_modal import EditDataModal
 from blender_buddy.tui.screens.spec_detail import SpecDetailScreen
 from blender_buddy.tui.screens.specs import SpecsScreen
 from blender_buddy.tui.widgets.spec_row import SpecRow
@@ -216,7 +216,7 @@ async def test_spec_detail_summarizes_the_armature(tmp_path, monkeypatch):
         assert await _wait_for(pilot, lambda: _rows(app) == expected)
         assert app.screen.query_one("#armature-summary").border_title == "Armature"
         assert not app.screen.query(".bone-row")
-        assert _enabled(app, "add_data")
+        assert _enabled(app, "edit_data")
 
 
 async def test_spec_detail_shows_zero_bones(tmp_path, monkeypatch):
@@ -225,7 +225,7 @@ async def test_spec_detail_shows_zero_bones(tmp_path, monkeypatch):
         await _open_spec(pilot, app)
         expected = ["Name: not set", "Bones: 0"]
         assert await _wait_for(pilot, lambda: _rows(app) == expected)
-        assert "Add data" in [
+        assert "Edit data" in [
             binding.description
             for (_, binding, _, _) in app.screen.active_bindings.values()
         ]
@@ -242,7 +242,7 @@ async def test_spec_detail_renders_the_armature_name_verbatim(tmp_path, monkeypa
         assert await _wait_for(pilot, lambda: _rows(app) == expected)
 
 
-async def test_spec_detail_reports_an_unreadable_spec_and_disables_add(
+async def test_spec_detail_reports_an_unreadable_spec_and_disables_edit(
     tmp_path, monkeypatch
 ):
     app = _app(tmp_path, monkeypatch, raw=(("broken", "{not json"),))
@@ -252,14 +252,14 @@ async def test_spec_detail_reports_an_unreadable_spec_and_disables_add(
         unreadable = app.screen.query_one("#spec-unreadable", Static)
         assert await _wait_for(pilot, lambda: unreadable.display)
         assert not app.screen.query_one("#armature-summary").display
-        assert not _enabled(app, "add_data")
+        assert not _enabled(app, "edit_data")
 
-        await pilot.press("a")
+        await pilot.press("e")
         await pilot.pause()
         assert isinstance(app.screen, SpecDetailScreen)
 
 
-async def test_add_data_opens_the_armature_form_and_refreshes_on_return(
+async def test_edit_data_opens_the_armature_form_and_refreshes_on_return(
     tmp_path, monkeypatch
 ):
     app = _app(tmp_path, monkeypatch, specs=("vehicle",))
@@ -267,29 +267,29 @@ async def test_add_data_opens_the_armature_form_and_refreshes_on_return(
         await _open_spec(pilot, app)
         assert await _wait_for(pilot, lambda: "Bones: 0" in _rows(app))
 
-        await pilot.press("a")
-        assert await _wait_for(pilot, lambda: isinstance(app.screen, AddDataModal))
+        await pilot.press("e")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, EditDataModal))
         await pilot.press("enter")
         assert await _wait_for(
             pilot, lambda: isinstance(app.screen, ArmatureFormScreen)
         )
         assert app.screen.path == tmp_path / "specs" / "vehicle.json"
 
-        await pilot.press(*"body", "enter")
+        await pilot.press("enter", *"body", "enter")
         await pilot.pause()
-        await pilot.press("escape")
+        await pilot.press("escape", "escape")
         assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))
         assert await _wait_for(pilot, lambda: "Bones: 1" in _rows(app))
 
 
-async def test_add_data_escape_writes_nothing(tmp_path, monkeypatch):
+async def test_edit_data_escape_writes_nothing(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch, specs=("vehicle",))
     spec = tmp_path / "specs" / "vehicle.json"
     before = spec.read_bytes()
     async with app.run_test() as pilot:
         await _open_spec(pilot, app)
-        await pilot.press("a")
-        assert await _wait_for(pilot, lambda: isinstance(app.screen, AddDataModal))
+        await pilot.press("e")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, EditDataModal))
         await pilot.press("escape")
         assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))
 
@@ -302,13 +302,13 @@ async def test_armature_name_set_on_the_form_shows_on_return(tmp_path, monkeypat
         await _open_spec(pilot, app)
         assert await _wait_for(pilot, lambda: "Name: not set" in _rows(app))
 
-        await pilot.press("a")
-        assert await _wait_for(pilot, lambda: isinstance(app.screen, AddDataModal))
+        await pilot.press("e")
+        assert await _wait_for(pilot, lambda: isinstance(app.screen, EditDataModal))
         await pilot.press("enter")
         assert await _wait_for(
             pilot, lambda: isinstance(app.screen, ArmatureFormScreen)
         )
-        await pilot.press("shift+tab", *"Rig", "enter")
+        await pilot.press("shift+tab", "enter", *"Rig", "enter")
         await pilot.pause()
         await pilot.press("escape")
         assert await _wait_for(pilot, lambda: isinstance(app.screen, SpecDetailScreen))

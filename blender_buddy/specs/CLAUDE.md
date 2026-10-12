@@ -17,17 +17,30 @@ disk. **No Textual, no UI.**
   unmapped segment** so a partial checklist can't be built. `.L`/`.R` are
   `BUILTIN_INVERSES` in code, never written to a spec and never remappable.
   Source-agnostic: typed or scene-inferred names go through the same calls.
+- `parenting.py` — pure `armature.parenting` logic. A pattern is a bone name
+  whose segments may be `{n}`, each matching one whole segment (base always
+  literal). Key placeholders are **bound** (children reuse the value); child-only
+  ones are **free**. `match`, `pairs`/`resolve` (against `required_bones`),
+  `ancestors`, `is_valid` (≤1 parent, no cycles), `merge` (append-dedupe per
+  key). `infer(parents, children, …)` is **what you check is what you get**:
+  each child pairs with the one checked parent whose distinguishing segments it
+  holds (else `ValueError`); the key placeholders the positions where checked
+  parents differ (and must match exactly them); child patterns bind those
+  values, free the most segments that still vary, and are kept only if they
+  resolve to exactly the intended pairs and keep `is_valid`. Anything else is
+  written as **exact names**. Other syntaxes (`*`, regex) just match literally.
 - `store.py` — the filesystem: `create(specs_dir, model_type)` writes a new
   skeleton (raising `FileExistsError` rather than overwriting),
   `list_specs(specs_dir)` classifies every spec as `OK` / `UNREADABLE` /
   `MISMATCHED`, and `count(specs_dir)` tallies them without parsing any.
   `read(path)` returns one document, raising `OSError` / `ValueError` when it
   is unreadable, not an object, or has a malformed `object_name` /
-  `required_bones` / `bone_name_inverses` (`armature_name()` /
-  `required_bones()` / `bone_name_inverses()` default them for older specs).
-  `update_armature(path, add_bones=, set_inverses=, drop_inverses=,
-  object_name=)` re-reads, patches **only** those three keys (bones deduped,
-  drops before sets, `object_name=None` leaves the name alone), and writes
+  `required_bones` / `bone_name_inverses` / `parenting` (`armature_name()` /
+  `required_bones()` / `bone_name_inverses()` / `parenting_map()` default them
+  for older specs). `update_armature(path, add_bones=, set_inverses=,
+  drop_inverses=, object_name=, add_parenting=)` re-reads, patches **only**
+  those keys (bones deduped, drops before sets, `object_name=None` leaves the
+  name alone, parenting merged via `parenting.merge`), and writes
   atomically — hand edits to anything else survive.
 
 ## Updates replace atomically; `create` uses O_EXCL

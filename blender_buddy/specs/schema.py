@@ -9,7 +9,7 @@ The document has four top-level sections:
 - `model_type` — the filename stem, repeated inside the file.
 - `armature` — the expected armature object, the bones that must exist, the
   bone-name segment inverses (`.front` ↔ `.rear`), and a parent-pattern →
-  child-patterns map.
+  child-patterns map using `{n}` placeholders (see `parenting.py`).
 - `mesh_roles` — role name → `mesh_regex`, `vtx_grp`, `count`, `texture_maps`,
   `weight`.
 - `modifiers` — which modifier types are required on skinned meshes, allowed
