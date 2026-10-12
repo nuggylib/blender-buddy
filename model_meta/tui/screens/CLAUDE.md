@@ -237,7 +237,7 @@ in the app (analogous to a route in a web app).
   screen offers it, nor tells the user to press `s`.
 - **Screens read `self.app.specs_dir`, never `config.paths` directly** — the
   same rule that keeps them off `self.app._config_path`. It also means
-  `$BLENDER_BUDDY_CONFIG` needs no sibling `$BLENDER_BUDDY_SPECS`: point the
+  `$MODEL_META_CONFIG` needs no sibling `$MODEL_META_SPECS`: point the
   config somewhere and the specs follow.
 - **Bind one key per `Binding`, not comma-joined keys, whenever the footer
   matters.** Textual expands `Binding("down,j", …)` into a separate binding per

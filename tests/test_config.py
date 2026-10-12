@@ -2,7 +2,7 @@
 
 These are pure I/O tests against a temp dir — no Textual, no subprocess. They
 cover the three load outcomes, the v1→v2 schema migration, the write-once-atomic
-round-trip, lossless Windows-path storage, and the $BLENDER_BUDDY_CONFIG
+round-trip, lossless Windows-path storage, and the $MODEL_META_CONFIG
 override seam.
 """
 
@@ -306,19 +306,19 @@ def test_windows_path_round_trips_losslessly(tmp_path):
 
 def test_config_file_honors_env_override(tmp_path, monkeypatch):
     override = tmp_path / "custom" / "config.toml"
-    monkeypatch.setenv("BLENDER_BUDDY_CONFIG", str(override))
+    monkeypatch.setenv("MODEL_META_CONFIG", str(override))
     assert paths.config_file() == override
 
 
 def test_config_file_expands_user_in_override(monkeypatch):
-    monkeypatch.setenv("BLENDER_BUDDY_CONFIG", "~/bb.toml")
+    monkeypatch.setenv("MODEL_META_CONFIG", "~/bb.toml")
     resolved = paths.config_file()
     assert "~" not in str(resolved)
     assert resolved.name == "bb.toml"
 
 
 def test_config_file_falls_back_to_platformdirs(monkeypatch):
-    monkeypatch.delenv("BLENDER_BUDDY_CONFIG", raising=False)
+    monkeypatch.delenv("MODEL_META_CONFIG", raising=False)
     resolved = paths.config_file()
     assert resolved.name == "config.toml"
     assert paths.APP_NAME in str(resolved)
@@ -334,9 +334,9 @@ def test_specs_dir_sits_beside_the_config_file(tmp_path):
 
 def test_specs_dir_follows_the_config_env_override(tmp_path, monkeypatch):
     """Point the config somewhere and the specs follow — no sibling override to
-    set, which is why there is no `$BLENDER_BUDDY_SPECS`."""
+    set, which is why there is no `$MODEL_META_SPECS`."""
     override = tmp_path / "custom" / "config.toml"
-    monkeypatch.setenv("BLENDER_BUDDY_CONFIG", str(override))
+    monkeypatch.setenv("MODEL_META_CONFIG", str(override))
     assert paths.specs_dir() == tmp_path / "custom" / paths.SPECS_DIRNAME
 
 

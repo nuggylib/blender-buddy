@@ -9,11 +9,11 @@ every later launch reads. This is the first persistence category in the project.
   every save. `models_directories` is a **tuple** (not a list): the dataclass is
   frozen, and a mutable field would undercut that. `to_toml_dict` converts it to
   a list so `tomli_w` writes a TOML array.
-- `paths.py` — `config_file()` resolves where the config lives: `$BLENDER_BUDDY_CONFIG`
+- `paths.py` — `config_file()` resolves where the config lives: `$MODEL_META_CONFIG`
   wins (the test/injection seam), else the `platformdirs` per-user config dir.
   `specs_dir(config_path=None)` is `specs/` beside that file — derived from the
   config *path*, never its contents, so it resolves with an absent or corrupt
-  config and needs no `$BLENDER_BUDDY_SPECS` of its own. Spec files are
+  config and needs no `$MODEL_META_SPECS` of its own. Spec files are
   addressed by this path convention, not by a stored setting, which is why
   they cost no schema bump.
 - `store.py` — `load(path)` returns `(ABSENT | VALID | CORRUPT, Settings | None)` and

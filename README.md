@@ -86,7 +86,7 @@ The config file lives in the platform's per-user config directory:
 
 On macOS and Linux, `$XDG_CONFIG_HOME` overrides the directory if set; Windows ignores it.
 
-Set `$BLENDER_BUDDY_CONFIG` to a full file path to override the location outright (used by the test suite so it never touches your real config).
+Set `$MODEL_META_CONFIG` to a full file path to override the location outright (used by the test suite so it never touches your real config).
 
 ## Using the dashboard
 
