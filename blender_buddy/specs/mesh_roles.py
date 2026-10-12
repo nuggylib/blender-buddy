@@ -39,3 +39,24 @@ def validate_vtx_grp(pattern: str, required: Sequence[str]) -> str | None:
     if not matches(pattern, required):
         return f"'{pattern}' matches no required bone."
     return None
+
+
+def infer_vtx_grp(checked: Collection[str], required: Sequence[str]) -> str:
+    """The pattern matching exactly `checked` among `required`, else `ValueError`."""
+    names = [bone for bone in required if bone in checked]
+    if not names:
+        raise ValueError("Check at least one bone.")
+    pattern = parenting.generalize(names)
+    if pattern is None:
+        first = names[0].split(".")
+        other = next(
+            name
+            for name in names
+            if len(name.split(".")) != len(first) or name.split(".")[0] != first[0]
+        )
+        raise ValueError(f"'{names[0]}' and '{other}' can't share one pattern.")
+    if len(pattern.encode("utf-8")) > bones.MAX_BYTES:
+        raise ValueError(f"Vertex group names are limited to {bones.MAX_BYTES} bytes.")
+    if extra := [bone for bone in matches(pattern, required) if bone not in checked]:
+        raise ValueError(f"'{pattern}' would also match {', '.join(extra)}.")
+    return pattern

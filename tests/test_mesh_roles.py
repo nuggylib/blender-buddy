@@ -1,5 +1,7 @@
 """Unit tests for mesh-role validation (blender_buddy.specs.mesh_roles)."""
 
+import pytest
+
 from blender_buddy.specs import bones, mesh_roles
 
 REQUIRED = [
@@ -84,4 +86,52 @@ def test_validate_vtx_grp_rejects_a_pattern_matching_nothing():
     assert (
         mesh_roles.validate_vtx_grp("wheel.{1}", REQUIRED)
         == "'wheel.{1}' matches no required bone."
+    )
+
+
+# --- infer_vtx_grp ---------------------------------------------------------
+
+
+def _reason(checked, required=REQUIRED):
+    with pytest.raises(ValueError) as error:
+        mesh_roles.infer_vtx_grp(checked, required)
+    return str(error.value)
+
+
+def test_infer_vtx_grp_one_bone_is_its_exact_name():
+    assert mesh_roles.infer_vtx_grp(["susarm.rear.top.L"], REQUIRED) == (
+        "susarm.rear.top.L"
+    )
+
+
+def test_infer_vtx_grp_frees_the_segments_that_differ():
+    checked = ["susarm.front.top.R", "susarm.front.top.L"]
+    assert mesh_roles.infer_vtx_grp(checked, REQUIRED) == "susarm.front.top.{1}"
+
+
+def test_infer_vtx_grp_follows_required_order():
+    checked = ["susarm.rear.top.L", "susarm.front.top.L"]
+    assert mesh_roles.infer_vtx_grp(checked, REQUIRED) == "susarm.{1}.top.L"
+
+
+def test_infer_vtx_grp_needs_a_checked_bone():
+    assert _reason([]) == "Check at least one bone."
+
+
+def test_infer_vtx_grp_rejects_a_mixed_base_or_length():
+    assert _reason(["root", "susarm.front.top.L"]) == (
+        "'root' and 'susarm.front.top.L' can't share one pattern."
+    )
+
+
+def test_infer_vtx_grp_rejects_over_the_byte_limit():
+    required = ["a" + ".x" * 31, "a" + ".y" * 31]
+    assert _reason(required, required) == (
+        f"Vertex group names are limited to {bones.MAX_BYTES} bytes."
+    )
+
+
+def test_infer_vtx_grp_names_the_bones_it_would_also_match():
+    assert _reason(["susarm.front.top.R", "susarm.rear.top.L"]) == (
+        "'susarm.{1}.top.{2}' would also match susarm.front.top.L."
     )
