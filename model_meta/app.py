@@ -55,6 +55,8 @@ class ModelMetaApp(App):
     input never strands a config-less dashboard.
     """
 
+    # Header text; Textual otherwise falls back to the class name.
+    TITLE = "model-meta"
     CSS_PATH = _resource_path("app.tcss")
     BINDINGS = [("q", "quit", "Quit")]
     # The dashboard is the hub; the rest are the per-section detail screens its
