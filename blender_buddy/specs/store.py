@@ -194,7 +194,7 @@ def _check_armature(armature: object) -> None:
 
 
 def _check_mesh_roles(roles: object) -> None:
-    """Raise `ValueError` unless `mesh_roles` is a map of objects, `vtx_grp` a string."""
+    """Raise `ValueError` unless every role is an object with a string `vtx_grp`."""
     if not (
         isinstance(roles, dict) and all(isinstance(r, dict) for r in roles.values())
     ):
