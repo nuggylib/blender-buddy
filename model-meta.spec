@@ -1,18 +1,18 @@
-# blender-buddy.spec — PyInstaller build definition (committed at repo root).
+# model-meta.spec — PyInstaller build definition (committed at repo root).
 #
 # Build locally with:
-#   uv run --frozen --group build pyinstaller blender-buddy.spec
-# Produces a onedir tree at dist/blender-buddy/ with the launcher
-# dist/blender-buddy/blender-buddy[.exe]. Smoke-test it with:
-#   ./dist/blender-buddy/blender-buddy --check   # exit 0 == it launches
+#   uv run --frozen --group build pyinstaller model-meta.spec
+# Produces a onedir tree at dist/model-meta/ with the launcher
+# dist/model-meta/model-meta[.exe]. Smoke-test it with:
+#   ./dist/model-meta/model-meta --check   # exit 0 == it launches
 #
-# On macOS it ALSO wraps that tree in dist/blender-buddy.app (see the BUNDLE at
+# On macOS it ALSO wraps that tree in dist/model-meta.app (see the BUNDLE at
 # the bottom). The .app is the staplable container Developer ID notarization
 # needs: a bare onedir launcher cannot carry a stapled notarization ticket, so
 # without it the app can't launch cleanly offline on first run. It stays a
 # console app (console=True) — a TUI must own a terminal, so it is launched from
-# a shell (blender-buddy.app/Contents/MacOS/blender-buddy), never double-clicked.
-#   ./dist/blender-buddy.app/Contents/MacOS/blender-buddy --check
+# a shell (model-meta.app/Contents/MacOS/model-meta), never double-clicked.
+#   ./dist/model-meta.app/Contents/MacOS/model-meta --check
 #
 # onedir (not onefile) is deliberate: it notarizes more cleanly on macOS, trips
 # far fewer Windows Defender false positives (no unpack-to-temp), and is what CI
@@ -50,7 +50,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,  # onedir: binaries/datas are emitted by COLLECT
-    name="blender-buddy",
+    name="model-meta",
     console=True,  # a TUI MUST own a terminal — never --windowed
     upx=False,
 )
@@ -59,7 +59,7 @@ coll = COLLECT(
     a.binaries,
     a.datas,
     upx=False,
-    name="blender-buddy",
+    name="model-meta",
 )
 
 # macOS only: wrap the onedir tree in a .app bundle. BUNDLE is the PyInstaller-
@@ -72,13 +72,13 @@ coll = COLLECT(
 if sys.platform == "darwin":
     app = BUNDLE(  # noqa: F821 — BUNDLE is injected into the spec namespace
         coll,
-        name="blender-buddy.app",
+        name="model-meta.app",
         icon=None,
-        bundle_identifier="dev.mcnuggies.blender-buddy",
+        bundle_identifier="dev.mcnuggies.model-meta",
         info_plist={
-            "CFBundleName": "Blender Buddy",
-            "CFBundleDisplayName": "Blender Buddy",
-            "CFBundleExecutable": "blender-buddy",
+            "CFBundleName": "Model Meta",
+            "CFBundleDisplayName": "Model Meta",
+            "CFBundleExecutable": "model-meta",
             # It is a terminal app, not a GUI: launched from a shell, never a
             # double-click. Keep it out of the Dock / app-switcher surface.
             "LSBackgroundOnly": False,

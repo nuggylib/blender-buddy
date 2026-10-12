@@ -10,7 +10,7 @@ Although Python does not enforce any sort of hard-and-fast project structure, th
 root (not under a `src/` directory). The `model_meta/` directory _is_ Blender Buddy — everything in
 it is packaged together into the published, downloadable Blender Buddy binary.
 
-The repository root also holds `blender-buddy.spec`, the committed PyInstaller build definition (see the
+The repository root also holds `model-meta.spec`, the committed PyInstaller build definition (see the
 README's "Building a standalone binary"). It is build tooling, not application code — packaging happens
 _from_ it, but it is not part of the shipped package.
 

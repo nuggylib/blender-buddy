@@ -131,24 +131,24 @@ jobs:
         run: |
           set -euo pipefail
           export SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
-          uv run --frozen --no-dev --group build pyinstaller --noconfirm blender-buddy.spec
+          uv run --frozen --no-dev --group build pyinstaller --noconfirm model-meta.spec
 
       - name: Ad-hoc sign (macOS)
         if: runner.os == 'macOS'
         run: |
           set -euo pipefail
-          # On macOS the spec wraps the onedir tree in dist/blender-buddy.app (the
+          # On macOS the spec wraps the onedir tree in dist/model-meta.app (the
           # staplable container release.yml notarizes). Sign the bundle's nested
           # Mach-O files inner-to-outer, the launcher, then the bundle itself.
           # Ad-hoc (--sign -) is enough for canaries to *execute* on Apple Silicon
           # after clearing quarantine; Developer ID + hardened runtime + timestamp
           # + notarization are release.yml's job (Phase 3b). No --deep (deprecated).
-          APP="dist/blender-buddy.app"
+          APP="dist/model-meta.app"
           find "$APP" -type f \( -name '*.so' -o -name '*.dylib' \) -print0 |
             while IFS= read -r -d '' f; do
               codesign --force --sign - "$f"
             done
-          codesign --force --sign - "$APP/Contents/MacOS/blender-buddy"
+          codesign --force --sign - "$APP/Contents/MacOS/model-meta"
           codesign --force --sign - "$APP"
           codesign --verify --strict --verbose=2 "$APP"
 
@@ -160,9 +160,9 @@ jobs:
           # the import graph to resolve — the one load-bearing gate. On macOS the
           # launcher lives inside the .app bundle; elsewhere it's the onedir tree.
           if [ "${{ runner.os }}" = "macOS" ]; then
-            bin="dist/blender-buddy.app/Contents/MacOS/blender-buddy"
+            bin="dist/model-meta.app/Contents/MacOS/model-meta"
           else
-            bin="dist/blender-buddy/blender-buddy${{ matrix.ext }}"
+            bin="dist/model-meta/model-meta${{ matrix.ext }}"
           fi
           "$bin" --version
           "$bin" --check
@@ -171,23 +171,23 @@ jobs:
         id: package
         run: |
           set -euo pipefail
-          archive="blender-buddy-${SLUG}-${{ matrix.target }}"
+          archive="model-meta-${SLUG}-${{ matrix.target }}"
           if [ "${{ runner.os }}" = "Windows" ]; then
             file="${archive}.zip"
             # 7z is preinstalled on windows-latest; zips the onedir tree with a
-            # top-level blender-buddy/ folder.
-            (cd dist && 7z a -tzip "../${file}" blender-buddy >/dev/null)
+            # top-level model-meta/ folder.
+            (cd dist && 7z a -tzip "../${file}" model-meta >/dev/null)
           elif [ "${{ runner.os }}" = "macOS" ]; then
             # tar the .app bundle (release.yml Developer ID signs, notarizes, and
             # staples it). tar preserves the bundle layout, the ad-hoc signature
             # inside each Mach-O, and — after 3b staples — the notarization ticket.
             file="${archive}.tar.gz"
-            tar czf "${file}" -C dist blender-buddy.app
+            tar czf "${file}" -C dist model-meta.app
           else
             # tar.gz preserves the execute bit (and the ad-hoc signature, which
             # lives inside the Mach-O, not an xattr).
             file="${archive}.tar.gz"
-            tar czf "${file}" -C dist blender-buddy
+            tar czf "${file}" -C dist model-meta
           fi
           echo "file=$file" >> "$GITHUB_OUTPUT"
 
@@ -197,7 +197,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: blender-buddy-${{ env.SLUG }}-${{ matrix.target }}
+          name: model-meta-${{ env.SLUG }}-${{ matrix.target }}
           path: ${{ steps.package.outputs.file }}
           retention-days: 14
           if-no-files-found: error

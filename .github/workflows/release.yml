@@ -73,12 +73,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          archive="$(ls incoming/blender-buddy-*-macos-arm64.tar.gz)"
+          archive="$(ls incoming/model-meta-*-macos-arm64.tar.gz)"
           # Re-tar under the identical name so the published asset URL and its
           # SHA256SUMS line are unchanged — only the bytes (now stapled) differ.
           echo "archive_name=$(basename "$archive")" >> "$GITHUB_OUTPUT"
           tar xzf "$archive" -C dist
-          test -d "dist/blender-buddy.app"
+          test -d "dist/model-meta.app"
 
       # Import the Developer ID cert into a throwaway keychain. Secret VALUES are
       # added in the GitHub UI and only ever exist as ${{ secrets.* }} here.
@@ -112,7 +112,7 @@ jobs:
         run: |
           set -euo pipefail
           kc="$RUNNER_TEMP/build.keychain"
-          APP="dist/blender-buddy.app"
+          APP="dist/model-meta.app"
           # Nested Mach-O first (inner-to-outer), the launcher, then the bundle
           # last — codesign does not recurse into nested executables, so each must
           # be signed before the enclosing bundle is sealed. --options runtime
@@ -124,7 +124,7 @@ jobs:
                 --keychain "$kc" --sign "$SIGN_IDENTITY" "$f"
             done
           codesign --force --timestamp --options runtime \
-            --keychain "$kc" --sign "$SIGN_IDENTITY" "$APP/Contents/MacOS/blender-buddy"
+            --keychain "$kc" --sign "$SIGN_IDENTITY" "$APP/Contents/MacOS/model-meta"
           codesign --force --timestamp --options runtime \
             --keychain "$kc" --sign "$SIGN_IDENTITY" "$APP"
           # --deep on VERIFY (not signing) walks the whole bundle and fails on any
@@ -138,7 +138,7 @@ jobs:
           AC_ISSUER_ID: ${{ secrets.AC_ISSUER_ID }}
         run: |
           set -euo pipefail
-          APP="dist/blender-buddy.app"
+          APP="dist/model-meta.app"
           # The .p8 is stored base64 to survive secret newline mangling; decode to
           # a runner-temp file. store-credentials is useless on an ephemeral runner
           # — pass --key/--key-id/--issuer directly.
@@ -169,7 +169,7 @@ jobs:
       - name: Staple + verify
         run: |
           set -euo pipefail
-          APP="dist/blender-buddy.app"
+          APP="dist/model-meta.app"
           # Attach the ticket to the bundle so first launch validates OFFLINE.
           xcrun stapler staple "$APP"
           xcrun stapler validate "$APP"
@@ -180,7 +180,7 @@ jobs:
       - name: Repackage the signed .app
         run: |
           set -euo pipefail
-          tar czf "${{ steps.unpack.outputs.archive_name }}" -C dist blender-buddy.app
+          tar czf "${{ steps.unpack.outputs.archive_name }}" -C dist model-meta.app
 
       - name: Upload the signed macOS archive
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -239,7 +239,7 @@ jobs:
 
       # The stapled macOS archive from this run's sign-macos job (same-run
       # artifact, so no run-id/token needed). Lands in ./dist beside the others
-      # under its original blender-buddy-*-macos-arm64.tar.gz name.
+      # under its original model-meta-*-macos-arm64.tar.gz name.
       - name: Download the signed macOS archive
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -252,7 +252,7 @@ jobs:
           set -euo pipefail
           cd dist
           # Relative names so a user who downloads into one dir can verify directly.
-          shasum -a 256 blender-buddy-* > SHA256SUMS
+          shasum -a 256 model-meta-* > SHA256SUMS
           cat SHA256SUMS
 
       # softprops/action-gh-release updates a release in place but never MOVES an
@@ -282,6 +282,6 @@ jobs:
           prerelease: true
           make_latest: "false"
           files: |
-            dist/blender-buddy-*
+            dist/model-meta-*
             dist/SHA256SUMS
           fail_on_unmatched_files: true
