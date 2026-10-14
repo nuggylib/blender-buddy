@@ -145,17 +145,26 @@ in the app (analogous to a route in a web app).
   `escape` leaves. `#parenting-list` and the preview are nested: each key,
   then its child patterns indented beneath it.
   Never name an attribute `_parent` here — it shadows Textual's `DOMNode._parent`.
-- `mesh_roles_form.py` — `MeshRolesFormScreen(path)`, the stay-on form for
-  adding mesh roles. Read-only `#role-list` (a `FieldList`: each role, its
-  `vtx_grp` indented) until Enter or a click opens `#role-editor`; with no
-  `required_bones` it opens nothing and says why in `#role-status`. Enter in
-  `#role-name` validates the name and reveals `#role-bones-question`: a
-  `#role-bones` checklist refilled from a fresh read, a live `#role-preview` of
-  `mesh_roles.infer_vtx_grp` (or why none fits), and **Add**, which infers on a
-  fresh read and writes via `add_mesh_role`, then returns to an empty
-  `#role-name`. No typed pattern. `escape`: hide the bones question → clear the
-  name → close the editor → leave. Failures keep the checks and write nothing.
-  `q` shadowed.
+- `mesh_roles_form.py` — `MeshRolesFormScreen(path)`, the form for adding and
+  editing mesh roles. Read-only `#role-list` (a `FieldList` with `cursor=True`:
+  each role, its `vtx_grp` indented). One `#role-editor` serves both modes
+  (`_mode`), one at a time: opening either discards the other unwritten. With
+  no `required_bones` neither opens, and `#role-status` says why.
+  **Add** (`a`, or Enter on an empty list): Enter in `#role-name` validates
+  the name and reveals `#role-bones-question` — a `#role-bones` checklist
+  refilled from a fresh read, a live `#role-preview` of
+  `mesh_roles.infer_vtx_grp` (or why none fits), and `#confirm-role` (**Add**),
+  which writes via `add_mesh_role` and returns to an empty `#role-name`.
+  `escape`: hide the question → clear the name → close.
+  **Edit** (Enter or a click on a role): name prefilled, the question shown at
+  once with the bones its `vtx_grp` `matches` pre-checked, focus on the
+  checklist. The name follows the add rules minus its own name, checked on
+  Enter and again at **Save** (so an unsubmitted rename counts). Save writes
+  via `update_mesh_role`, closes, and leaves the cursor on the role. `escape`
+  closes unsaved. `a` is enabled (`check_action`) only with no editor open or
+  from the list, so a stray `a` can't discard an edit. With no editor open,
+  `escape` leaves. Failures keep text and checks and write nothing. No typed
+  pattern. `q` shadowed.
 - `blender_detail.py`, `godot_detail.py` — the other two detail screens
   (`blender-detail`, `godot-detail` in `SCREENS`). Still **placeholders**: they
   render the configured value they own plus a `#placeholder-note`. They exist so

@@ -53,13 +53,18 @@ in the screen that owns it.
   `FixPanel`'s reason, and rows use `markup=False` because values come from
   the spec file (`rich.markup.escape` misses uppercase tags like `[L]`).
 - `field_list.py` — `FieldList(VerticalScroll, can_focus=True)`, one spec
-  field's contents shown read-only on the armature form. `title` becomes the
-  `border_title`; `lines` (a tuple of `(text, depth)`) render as
-  `.field-list-row`, depth 1 also `.field-list-child`; `empty` shows as
-  `.field-list-empty` when there are none. `enter` or a click posts
+  field's contents shown read-only on the armature and mesh-roles forms.
+  `title` becomes the `border_title`; `lines` (a tuple of `(text, depth)`)
+  render as `.field-list-row`, depth 1 also `.field-list-child`; `empty` shows
+  as `.field-list-empty` when there are none. `enter` or a click posts
   `FieldList.Selected` (`control` is the list), so the screen opens the
   editor. Arrow keys scroll. `lines` is a `recompose=True` reactive and rows
   use `markup=False`, both for `FieldSummary`'s reasons.
+  **Opt-in cursor** (`cursor=True`): up/down move `highlighted` over the
+  items (depth-0 lines; a depth-1 line belongs to the item above), clamped
+  when `lines` change and kept in view; that row gets
+  `.field-list-highlighted`, and a click highlights the clicked row's item.
+  `Selected.index` is the highlighted item, `None` without a cursor or items.
 
 ## Conventions
 - **A widget never navigates.** It names where it leads (`target`) and posts a

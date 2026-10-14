@@ -52,9 +52,12 @@ disk. **No Textual, no UI.**
   atomically — hand edits to anything else survive.
   `add_mesh_role(path, name, vtx_grp)` re-reads, raises `ValueError` on a
   taken name, and writes only `mesh_roles[name] = {"vtx_grp": …}` the same way.
+  `update_mesh_role(path, name, new_name, vtx_grp)` re-reads, raises
+  `ValueError` when `name` is gone or `new_name` is another role, and rewrites
+  that one role in place — same position, other fields kept.
 
 ## Updates replace atomically; `create` uses O_EXCL
-`update_armature` and `add_mesh_role` write a sibling `.tmp` and `os.replace`
+`update_armature`, `add_mesh_role` and `update_mesh_role` write a sibling `.tmp` and `os.replace`
 it, like `config/store.py`: replacing *is* the point of an update, and a crash never
 leaves a half-written spec. `create` deliberately does not: a replace would
 *overwrite* the existing file, defeating
