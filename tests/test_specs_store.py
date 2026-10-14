@@ -532,3 +532,67 @@ def test_add_mesh_role_leaves_no_tmp_behind(tmp_path):
     store.add_mesh_role(path, "body", "body")
 
     assert sorted(p.name for p in tmp_path.iterdir()) == ["vehicle.json"]
+
+
+# --- update_mesh_role ------------------------------------------------------
+
+
+def _three_roles(tmp_path):
+    document = schema.skeleton("vehicle")
+    document["mesh_roles"] = {
+        "body": {"vtx_grp": "body"},
+        "wheel": {"vtx_grp": "wheel.{1}", "weight": 1.0},
+        "glass": {},
+    }
+    document["hand_added"] = True
+    return _write(tmp_path, "vehicle", document), document
+
+
+def test_update_mesh_role_replaces_the_vtx_grp_in_place(tmp_path):
+    path, document = _three_roles(tmp_path)
+    store.update_mesh_role(path, "wheel", "wheel", "wheel.front")
+
+    after = json.loads(path.read_text(encoding="utf-8"))
+    document["mesh_roles"]["wheel"]["vtx_grp"] = "wheel.front"
+    assert after == document
+
+
+def test_update_mesh_role_renames_keeping_position_and_fields(tmp_path):
+    path, document = _three_roles(tmp_path)
+    store.update_mesh_role(path, "wheel", "tyre", "wheel.{1}")
+
+    after = json.loads(path.read_text(encoding="utf-8"))
+    assert list(after["mesh_roles"]) == ["body", "tyre", "glass"]
+    assert after["mesh_roles"]["tyre"] == {"vtx_grp": "wheel.{1}", "weight": 1.0}
+    assert after["hand_added"] is True
+
+
+def test_update_mesh_role_adds_a_vtx_grp_to_a_role_without_one(tmp_path):
+    path, _ = _three_roles(tmp_path)
+    store.update_mesh_role(path, "glass", "glass", "body")
+
+    assert store.mesh_roles(store.read(path))["glass"] == {"vtx_grp": "body"}
+
+
+@pytest.mark.parametrize(
+    ("name", "new_name", "message"),
+    [
+        ("door", "door", "'door' is no longer a mesh role."),
+        ("wheel", "body", "'body' is already a mesh role."),
+    ],
+)
+def test_update_mesh_role_rejects_and_writes_nothing(tmp_path, name, new_name, message):
+    path, _ = _three_roles(tmp_path)
+    before = path.read_bytes()
+
+    with pytest.raises(ValueError, match=message):
+        store.update_mesh_role(path, name, new_name, "body")
+
+    assert path.read_bytes() == before
+
+
+def test_update_mesh_role_leaves_no_tmp_behind(tmp_path):
+    path, _ = _three_roles(tmp_path)
+    store.update_mesh_role(path, "body", "hull", "body")
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["vehicle.json"]

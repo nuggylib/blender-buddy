@@ -138,6 +138,28 @@ def add_mesh_role(path: Path, name: str, vtx_grp: str) -> None:
     _replace(path, document)
 
 
+def update_mesh_role(path: Path, name: str, new_name: str, vtx_grp: str) -> None:
+    """Re-read the spec and rename and re-pattern one role, touching nothing else.
+
+    The role keeps its position and its other fields. Raises `ValueError` if
+    `name` is gone or `new_name` is another role, or like `read`, or `OSError`
+    on write.
+    """
+    document = read(path)
+    roles = mesh_roles(document)
+    if name not in roles:
+        raise ValueError(f"'{name}' is no longer a mesh role.")
+    if new_name != name and new_name in roles:
+        raise ValueError(f"'{new_name}' is already a mesh role.")
+    document["mesh_roles"] = {
+        (new_name if key == name else key): (
+            {**role, "vtx_grp": vtx_grp} if key == name else role
+        )
+        for key, role in roles.items()
+    }
+    _replace(path, document)
+
+
 def list_specs(specs_dir: Path) -> list[SpecEntry]:
     """Every spec in `specs_dir`, sorted by name. A missing dir is `[]`.
 
