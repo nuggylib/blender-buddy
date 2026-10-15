@@ -68,6 +68,12 @@ async def _edit(pilot, app, view_id):
     await pilot.pause()
 
 
+async def _add_mode(pilot, app):
+    app.screen.query_one("#bone-list").focus()
+    await pilot.press("a")
+    await pilot.pause()
+
+
 def _focused_id(app):
     return app.screen.focused.id if app.screen.focused else None
 
@@ -365,7 +371,7 @@ async def test_checklist_skipped_when_every_variant_is_required(tmp_path, monkey
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(80, 40)) as pilot:
         await _open(pilot, app, path)
-        await _edit(pilot, app, "bone-list")
+        await _add_mode(pilot, app)
         await _type(pilot, "arm.L")
 
         assert not app.screen.query("#bone-variants")
@@ -708,7 +714,7 @@ async def test_opening_a_field_closes_the_other_unwritten(tmp_path, monkeypatch)
     async with app.run_test(size=(100, 50)) as pilot:
         await _open(pilot, app, path)
         before = path.read_bytes()
-        await _edit(pilot, app, "bone-list")
+        await _add_mode(pilot, app)
         await _type(pilot, "arm.top")
         assert app.screen.query("#bone-inverse")
 
@@ -718,7 +724,7 @@ async def test_opening_a_field_closes_the_other_unwritten(tmp_path, monkeypatch)
         assert app.screen.query_one("#bone-name", Input).value == ""
         assert _focused_id(app) == "child-bones"
 
-        await _edit(pilot, app, "bone-list")
+        await _add_mode(pilot, app)
         assert not app.screen.query_one("#parenting-editor").display
         assert not app.screen.query("#child-bones")
         assert app.screen.query_one("#parent-bones", SelectionList).selected == []
@@ -735,3 +741,54 @@ async def test_clicking_a_field_opens_its_editor(tmp_path, monkeypatch):
         await pilot.pause()
         assert app.screen.query_one("#parenting-editor").display
         assert _focused_id(app) == "parent-bones"
+
+
+# --- the bone list cursor and `a` ---------------------------------------------
+
+
+def _highlighted(app):
+    return app.screen.query_one("#bone-list").highlighted
+
+
+def _bindings(app):
+    return {b.binding.key for b in app.screen.active_bindings.values()}
+
+
+async def test_bone_list_cursor_moves_without_wrapping(tmp_path, monkeypatch):
+    path = _spec(tmp_path)
+    specs_store.update_armature(path, add_bones=["root", "body", "head"])
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path)
+        assert _focused_id(app) == "bone-list"
+        assert _highlighted(app) == 0
+
+        await pilot.press("up")
+        assert _highlighted(app) == 0
+        await pilot.press("down", "down", "down")
+        assert _highlighted(app) == 2
+        await pilot.pause()
+        highlighted = _rows(app, "bone-list")[2]
+        assert highlighted.has_class("field-list-highlighted")
+
+
+async def test_a_adds_from_the_bone_list_only(tmp_path, monkeypatch):
+    path = _rig(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 50)) as pilot:
+        await _open(pilot, app, path)
+        assert "a" in _bindings(app)
+
+        app.screen.query_one("#parenting-list").focus()
+        await pilot.pause()
+        assert "a" not in _bindings(app)
+        await pilot.press("a")
+        await pilot.pause()
+        assert not app.screen.query_one("#bone-editor").display
+
+        await _add_mode(pilot, app)
+        assert app.screen.query_one("#bone-editor").display
+        assert _focused_id(app) == "bone-name"
+        await _type(pilot, "tail")
+        assert _armature(path)["required_bones"][-1] == "tail"
+        assert _focused_id(app) == "bone-name"

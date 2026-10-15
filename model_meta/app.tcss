@@ -218,10 +218,12 @@ ArmatureFormScreen .field-list-child, MeshRolesFormScreen .field-list-child {
 }
 
 /* The row cursor (FieldList cursor=True); stronger while the list has focus. */
+ArmatureFormScreen .field-list-highlighted,
 MeshRolesFormScreen .field-list-highlighted {
     background: $boost;
 }
 
+ArmatureFormScreen .field-list:focus .field-list-highlighted,
 MeshRolesFormScreen .field-list:focus .field-list-highlighted {
     background: $accent 30%;
 }

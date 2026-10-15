@@ -91,6 +91,7 @@ class ArmatureFormScreen(Screen):
 
     BINDINGS = [
         Binding("escape", "back", "Back"),
+        Binding("a", "add_bone", "Add"),
         Binding("q", "noop", show=False),
     ]
 
@@ -171,7 +172,11 @@ class ArmatureFormScreen(Screen):
                     yield Input(id="bone-name")
                     yield Vertical(id="bone-question")
                 yield FieldList(
-                    "Required bones", _EMPTY, id="bone-list", classes="field-list"
+                    "Required bones",
+                    _EMPTY,
+                    cursor=True,
+                    id="bone-list",
+                    classes="field-list",
                 )
             with Vertical(id="parenting-column"):
                 with Vertical(id="parenting-editor", classes="editor"):
@@ -204,6 +209,12 @@ class ArmatureFormScreen(Screen):
         self._show_bones()
 
     # -- bindings ----------------------------------------------------------
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool:
+        if action == "add_bone":
+            focused = self.focused
+            return focused is not None and focused.id == "bone-list"
+        return True
 
     async def action_back(self) -> None:
         self._status("")
@@ -239,6 +250,9 @@ class ArmatureFormScreen(Screen):
         self._bone = None
         await self._clear_question()
         name.focus()
+
+    async def action_add_bone(self) -> None:
+        await self._edit("bones")
 
     def action_noop(self) -> None:
         """Absorb `q` so the app's global quit can't fire mid-bone."""
