@@ -217,3 +217,36 @@ def test_infer_merges_into_an_existing_key(existing):
     merged = parenting.merge(existing, entries)
     assert list(merged) == ["axle.{1}.{2}"]
     assert merged["axle.{1}.{2}"][-1] == "shockmount.wheel.{1}.{2}"
+
+
+# --- is_stale / stale_keys -------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("pattern", "old", "new", "expected"),
+    [
+        ("arm.L", "arm.L", "upperarm.L", True),  # a literal is lost
+        ("arm.{1}", "arm.L", "arm.C", False),  # the pattern still covers it
+        ("arm.{1}", "arm.L", "upperarm.L", True),
+        ("leg.L", "arm.L", "upperarm.L", False),  # it never matched
+    ],
+)
+def test_is_stale(pattern, old, new, expected):
+    assert parenting.is_stale(pattern, old, new) is expected
+
+
+STALE = {"root": ["arm.{1}"], "arm.L": ["hand.L"], "leg.{1}": ["foot.{1}"]}
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected"),
+    [
+        ("arm.L", "upperarm.L", ["root", "arm.L"]),  # a child pattern and a key
+        ("hand.L", "palm.L", ["arm.L"]),
+        ("leg.L", "leg.R", []),  # the pattern still covers it
+        ("root", "base", ["root"]),
+        ("spine", "back", []),  # nothing names it
+    ],
+)
+def test_stale_keys(old, new, expected):
+    assert parenting.stale_keys(STALE, old, new) == expected

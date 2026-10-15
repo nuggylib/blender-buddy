@@ -68,6 +68,12 @@ async def _edit(pilot, app, view_id):
     await pilot.pause()
 
 
+async def _add_mode(pilot, app):
+    app.screen.query_one("#bone-list").focus()
+    await pilot.press("a")
+    await pilot.pause()
+
+
 def _focused_id(app):
     return app.screen.focused.id if app.screen.focused else None
 
@@ -365,7 +371,7 @@ async def test_checklist_skipped_when_every_variant_is_required(tmp_path, monkey
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(80, 40)) as pilot:
         await _open(pilot, app, path)
-        await _edit(pilot, app, "bone-list")
+        await _add_mode(pilot, app)
         await _type(pilot, "arm.L")
 
         assert not app.screen.query("#bone-variants")
@@ -436,7 +442,7 @@ async def test_failures_keep_text_and_write_nothing(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(80, 40)) as pilot:
         await _open(pilot, app, path)
-        await _edit(pilot, app, "bone-list")
+        await _add_mode(pilot, app)
         before = path.read_bytes()
 
         await _type(pilot, "body")
@@ -708,7 +714,7 @@ async def test_opening_a_field_closes_the_other_unwritten(tmp_path, monkeypatch)
     async with app.run_test(size=(100, 50)) as pilot:
         await _open(pilot, app, path)
         before = path.read_bytes()
-        await _edit(pilot, app, "bone-list")
+        await _add_mode(pilot, app)
         await _type(pilot, "arm.top")
         assert app.screen.query("#bone-inverse")
 
@@ -718,7 +724,7 @@ async def test_opening_a_field_closes_the_other_unwritten(tmp_path, monkeypatch)
         assert app.screen.query_one("#bone-name", Input).value == ""
         assert _focused_id(app) == "child-bones"
 
-        await _edit(pilot, app, "bone-list")
+        await _add_mode(pilot, app)
         assert not app.screen.query_one("#parenting-editor").display
         assert not app.screen.query("#child-bones")
         assert app.screen.query_one("#parent-bones", SelectionList).selected == []
@@ -735,3 +741,316 @@ async def test_clicking_a_field_opens_its_editor(tmp_path, monkeypatch):
         await pilot.pause()
         assert app.screen.query_one("#parenting-editor").display
         assert _focused_id(app) == "parent-bones"
+
+
+# --- the bone list cursor and `a` ---------------------------------------------
+
+
+def _highlighted(app):
+    return app.screen.query_one("#bone-list").highlighted
+
+
+def _bindings(app):
+    return {b.binding.key for b in app.screen.active_bindings.values()}
+
+
+async def test_bone_list_cursor_moves_without_wrapping(tmp_path, monkeypatch):
+    path = _spec(tmp_path)
+    specs_store.update_armature(path, add_bones=["root", "body", "head"])
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path)
+        assert _focused_id(app) == "bone-list"
+        assert _highlighted(app) == 0
+
+        await pilot.press("up")
+        assert _highlighted(app) == 0
+        await pilot.press("down", "down", "down")
+        assert _highlighted(app) == 2
+        await pilot.pause()
+        highlighted = _rows(app, "bone-list")[2]
+        assert highlighted.has_class("field-list-highlighted")
+
+
+async def test_a_adds_from_the_bone_list_only(tmp_path, monkeypatch):
+    path = _rig(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 50)) as pilot:
+        await _open(pilot, app, path)
+        assert "a" in _bindings(app)
+
+        app.screen.query_one("#parenting-list").focus()
+        await pilot.pause()
+        assert "a" not in _bindings(app)
+        await pilot.press("a")
+        await pilot.pause()
+        assert not app.screen.query_one("#bone-editor").display
+
+        await _add_mode(pilot, app)
+        assert app.screen.query_one("#bone-editor").display
+        assert _focused_id(app) == "bone-name"
+        await _type(pilot, "tail")
+        assert _armature(path)["required_bones"][-1] == "tail"
+        assert _focused_id(app) == "bone-name"
+
+
+# --- renaming a bone ---------------------------------------------------------
+
+
+def _arms(tmp_path):
+    path = _spec(tmp_path)
+    specs_store.update_armature(
+        path, add_bones=["root", "arm.L", "arm.R"], add_parenting={"root": ["arm.{1}"]}
+    )
+    specs_store.add_mesh_role(path, "arm", "arm.{1}")
+    specs_store.add_mesh_role(path, "base", "root")
+    return path
+
+
+async def _edit_bone(pilot, app, index):
+    bone_list = app.screen.query_one("#bone-list")
+    bone_list.focus()
+    bone_list.highlighted = index
+    await pilot.press("enter")
+    await pilot.pause()
+
+
+async def _retype(pilot, app, text):
+    app.screen.query_one("#bone-name", Input).value = text
+    await pilot.press("enter")
+    await pilot.pause()
+
+
+def _label(app):
+    return str(app.screen.query_one("#bone-name-label", Static).render())
+
+
+def _marked(app):
+    return [
+        str(row.render())
+        for row in _rows(app, "parenting-list")
+        if row.has_class("field-list-marked")
+    ]
+
+
+async def test_enter_on_a_bone_opens_it_for_renaming(tmp_path, monkeypatch):
+    path = _arms(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path)
+        await _edit_bone(pilot, app, 1)
+
+        assert app.screen.query_one("#bone-editor").display
+        assert app.screen.query_one("#bone-name", Input).value == "arm.L"
+        assert _label(app) == "Rename 'arm.L'"
+        assert _focused_id(app) == "bone-name"
+
+
+async def test_rename_writes_in_place_closes_and_warns(tmp_path, monkeypatch):
+    path = _arms(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path)
+        await _edit_bone(pilot, app, 1)
+        await _retype(pilot, app, "upperarm.L")
+
+        assert _armature(path)["required_bones"] == ["root", "upperarm.L", "arm.R"]
+        assert _armature(path)["parenting"] == {"root": ["arm.{1}"]}
+        assert not app.screen.query_one("#bone-editor").display
+        assert _label(app) == "Bone name"
+        assert _focused_id(app) == "bone-list"
+        assert _highlighted(app) == 1
+        assert _listed(app) == ["root", "upperarm.L", "arm.R"]
+        assert _status(app) == (
+            "Bone 'upperarm.L' saved. 'arm.L' was matched by parenting 'root' "
+            "and mesh role 'arm' — update them."
+        )
+        assert _marked(app) == ["arm.{1}"]  # the child line, not its key
+
+        await pilot.press("up")
+        await pilot.pause()
+        assert _marked(app) == ["arm.{1}"]
+
+        await pilot.press("a")
+        await pilot.pause()
+        assert _status(app) == ""
+        assert _marked(app) == []
+
+
+async def test_rename_asks_new_inverses_and_adds_no_variants(tmp_path, monkeypatch):
+    path = _arms(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path)
+        await _edit_bone(pilot, app, 1)
+        await _retype(pilot, app, "arm.L.upper")
+        assert _inverse_label(app).startswith("Inverse of `.upper`")
+        assert _armature(path)["required_bones"] == ["root", "arm.L", "arm.R"]
+
+        await _type(pilot, "lower")
+        assert not app.screen.query("#bone-variants")
+        armature = _armature(path)
+        assert armature["required_bones"] == ["root", "arm.L.upper", "arm.R"]
+        assert armature["bone_name_inverses"] == {
+            ".upper": ".lower",
+            ".lower": ".upper",
+        }
+        assert _status(app) == (
+            "Bone 'arm.L.upper' saved. 'arm.L' was matched by parenting 'root' "
+            "and mesh role 'arm' — update them."
+        )
+
+
+async def test_rename_a_pattern_still_covers_has_no_warning(tmp_path, monkeypatch):
+    path = _arms(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path)
+        await _edit_bone(pilot, app, 1)
+        await _retype(pilot, app, "arm.C")
+        await _type(pilot, "")  # `.C` has no inverse
+
+        assert _armature(path)["required_bones"] == ["root", "arm.C", "arm.R"]
+        assert _armature(path)["bone_name_inverses"] == {".C": ".C"}
+        assert _status(app) == "Bone 'arm.C' saved."
+        assert _marked(app) == []
+
+
+async def test_rename_warns_with_one_reference(tmp_path, monkeypatch):
+    path = _arms(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path)
+        await _edit_bone(pilot, app, 0)
+        await _retype(pilot, app, "base")
+
+        assert _status(app) == (
+            "Bone 'base' saved. 'root' was matched by parenting 'root' "
+            "and mesh role 'base' — update them."
+        )
+        assert _marked(app) == ["root"]
+
+        await _edit_bone(pilot, app, 1)
+        assert _status(app) == ""
+        assert _marked(app) == []
+
+
+async def test_rename_onto_another_bone_is_rejected(tmp_path, monkeypatch):
+    path = _arms(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path)
+        before = path.read_bytes()
+        await _edit_bone(pilot, app, 1)
+        await _retype(pilot, app, "arm.R")
+
+        assert _status(app) == "'arm.R' is already required."
+        assert app.screen.query_one("#bone-editor").display
+        assert app.screen.query_one("#bone-name", Input).value == "arm.R"
+        assert path.read_bytes() == before
+
+        await _retype(pilot, app, "")
+        assert _status(app) == "Enter a bone name."
+        assert path.read_bytes() == before
+
+
+async def test_rename_to_its_own_name_is_accepted(tmp_path, monkeypatch):
+    path = _arms(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path)
+        await _edit_bone(pilot, app, 2)
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert _armature(path)["required_bones"] == ["root", "arm.L", "arm.R"]
+        assert _status(app) == "Bone 'arm.R' saved."
+        assert not app.screen.query_one("#bone-editor").display
+
+
+async def test_rename_escape_steps_back_then_closes_unsaved(tmp_path, monkeypatch):
+    path = _arms(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path)
+        before = path.read_bytes()
+        await _edit_bone(pilot, app, 1)
+        await _retype(pilot, app, "arm.L.upper")
+        assert app.screen.query("#bone-inverse")
+
+        await pilot.press("escape")  # question → name, text kept
+        await pilot.pause()
+        assert not app.screen.query("#bone-inverse")
+        assert app.screen.query_one("#bone-name", Input).value == "arm.L.upper"
+
+        await pilot.press("escape")  # closes unsaved, no clearing step
+        await pilot.pause()
+        assert not app.screen.query_one("#bone-editor").display
+        assert _focused_id(app) == "bone-list"
+        assert _highlighted(app) == 1
+        assert isinstance(app.screen, ArmatureFormScreen)
+        assert path.read_bytes() == before
+
+
+async def test_switching_between_add_and_rename(tmp_path, monkeypatch):
+    path = _arms(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path)
+        before = path.read_bytes()
+        await _edit_bone(pilot, app, 1)
+        app.screen.query_one("#bone-name", Input).value = "typed"
+
+        await _edit_bone(pilot, app, 1)  # the same bone: nothing resets
+        assert app.screen.query_one("#bone-name", Input).value == "typed"
+        assert _focused_id(app) == "bone-name"
+
+        await _add_mode(pilot, app)  # rename → add, discarded
+        assert app.screen.query_one("#bone-name", Input).value == ""
+        assert _label(app) == "Bone name"
+        app.screen.query_one("#bone-name", Input).value = "tail"
+
+        await _edit_bone(pilot, app, 2)  # add → rename, discarded
+        assert app.screen.query_one("#bone-name", Input).value == "arm.R"
+        assert _label(app) == "Rename 'arm.R'"
+
+        await _edit(pilot, app, "parenting-list")  # rename → another field
+        assert not app.screen.query_one("#bone-editor").display
+        assert app.screen._original is None
+        assert path.read_bytes() == before
+
+
+async def test_clicking_a_bone_renames_it(tmp_path, monkeypatch):
+    path = _arms(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path)
+        await pilot.click(_rows(app, "bone-list")[2])
+        await pilot.pause()
+
+        assert app.screen.query_one("#bone-name", Input).value == "arm.R"
+        assert _highlighted(app) == 2
+
+
+async def test_renaming_a_bone_removed_by_hand(tmp_path, monkeypatch):
+    path = _arms(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path)
+        await _edit_bone(pilot, app, 1)
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["armature"]["required_bones"] = ["root", "arm.R"]
+        path.write_text(json.dumps(document), encoding="utf-8")
+        before = path.read_bytes()
+
+        await _retype(pilot, app, "upperarm.L")
+        assert _status(app) == "'arm.L' is no longer a required bone."
+        assert path.read_bytes() == before
+
+        await pilot.press("escape")
+        await pilot.pause()
+        await _edit_bone(pilot, app, 0)
+        await pilot.press("escape")
+        await pilot.pause()
+        await _edit_bone(pilot, app, 1)
+        assert _listed(app) == ["root", "arm.R"]

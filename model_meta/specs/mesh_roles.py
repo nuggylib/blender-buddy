@@ -9,7 +9,7 @@ Pure functions over strings, like `bones`.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 
 from model_meta.specs import bones, parenting
 
@@ -26,6 +26,17 @@ def validate_name(name: str, existing: Collection[str]) -> str | None:
 def matches(pattern: str, required: Sequence[str]) -> list[str]:
     """The required bones `pattern` matches, in order."""
     return [bone for bone in required if parenting.match(pattern, bone) is not None]
+
+
+def stale_roles(roles: Mapping[str, Mapping], old: str, new: str) -> list[str]:
+    """The roles whose `vtx_grp` matches `old` but not `new`."""
+    return [
+        name
+        for name, role in roles.items()
+        if "vtx_grp" in role
+        and matches(role["vtx_grp"], [old])
+        and not matches(role["vtx_grp"], [new])
+    ]
 
 
 def infer_vtx_grp(checked: Collection[str], required: Sequence[str]) -> str:

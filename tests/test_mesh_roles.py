@@ -103,3 +103,25 @@ def test_infer_vtx_grp_names_the_bones_it_would_also_match():
     assert _reason(["susarm.front.top.R", "susarm.rear.top.L"]) == (
         "'susarm.{1}.top.{2}' would also match susarm.front.top.L."
     )
+
+
+# --- stale_roles -----------------------------------------------------------
+
+ROLES = {
+    "body": {"vtx_grp": "body"},
+    "arm": {"vtx_grp": "arm.{1}"},
+    "glass": {},
+}
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected"),
+    [
+        ("body", "hull", ["body"]),
+        ("arm.L", "upperarm.L", ["arm"]),
+        ("arm.L", "arm.R", []),  # the pattern still covers it
+        ("glass", "window", []),  # no vtx_grp
+    ],
+)
+def test_stale_roles(old, new, expected):
+    assert mesh_roles.stale_roles(ROLES, old, new) == expected

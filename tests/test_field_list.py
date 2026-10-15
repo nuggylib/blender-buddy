@@ -128,3 +128,42 @@ async def test_cursor_keeps_the_highlight_in_view():
         row = app.query_one(".field-list-highlighted")
         assert field_list.scroll_y > 0
         assert row.region.overlaps(field_list.content_region)
+
+
+def _marked_rows(app):
+    return [str(row.render()) for row in app.query(".field-list-marked")]
+
+
+async def test_marked_lines_get_the_class_until_lines_change():
+    app = _Host()
+    async with app.run_test() as pilot:
+        field_list = app.query_one(FieldList)
+        field_list.lines = ROLES
+        await pilot.pause()
+        assert not _marked_rows(app)
+
+        field_list.marked = frozenset({1, 2})
+        await pilot.pause()
+        assert _marked_rows(app) == ["vtx_grp: body", "glass"]
+
+        field_list.marked = frozenset()
+        await pilot.pause()
+        assert not _marked_rows(app)
+
+        field_list.marked = frozenset({0})
+        field_list.lines = ROLES[:2]
+        await pilot.pause()
+        assert field_list.marked == frozenset()
+        assert not _marked_rows(app)
+
+
+async def test_marked_set_right_after_lines_lands_on_the_new_rows():
+    app = _Host()
+    async with app.run_test() as pilot:
+        field_list = app.query_one(FieldList)
+        field_list.lines = ROLES
+        await pilot.pause()
+        field_list.lines = ROLES[2:]
+        field_list.marked = frozenset({2})
+        await pilot.pause()
+        assert _marked_rows(app) == ["w"]

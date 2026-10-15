@@ -21,6 +21,9 @@ class FieldList(VerticalScroll, can_focus=True):
     With `cursor=True`, up/down move `highlighted` over the items (depth-0
     lines; a depth-1 line belongs to the item above it) instead of scrolling,
     and `Selected.index` names the highlighted item.
+
+    `marked` holds line indices whose rows get `.field-list-marked`; assigning
+    `lines` clears it, so set it after them.
     """
 
     BINDINGS = [
@@ -31,6 +34,7 @@ class FieldList(VerticalScroll, can_focus=True):
 
     lines: reactive[tuple[tuple[str, int], ...]] = reactive((), recompose=True)
     highlighted: reactive[int | None] = reactive(None)
+    marked: reactive[frozenset[int]] = reactive(frozenset())
 
     class Selected(Message):
         """Posted when the user selects the list. Handled by the owning screen."""
@@ -53,13 +57,17 @@ class FieldList(VerticalScroll, can_focus=True):
     def compose(self) -> ComposeResult:
         if not self.lines:
             yield Static(self.empty, classes="field-list-empty", markup=False)
-        for (text, depth), item in zip(self.lines, self._items(), strict=True):
+        lines = zip(self.lines, self._items(), strict=True)
+        for index, ((text, depth), item) in enumerate(lines):
             classes = "field-list-row field-list-child" if depth else "field-list-row"
             if not depth and item == self.highlighted:
                 classes += " field-list-highlighted"
+            if index in self.marked:
+                classes += " field-list-marked"
             yield Static(text, classes=classes, markup=False)
 
     def watch_lines(self) -> None:
+        self.marked = frozenset()
         if not self.cursor:
             return
         count = self._count()
@@ -76,6 +84,10 @@ class FieldList(VerticalScroll, can_focus=True):
                 not depth and item == self.highlighted, "field-list-highlighted"
             )
         self._scroll_to_highlighted()
+
+    def watch_marked(self) -> None:
+        for index, row in enumerate(self.query(".field-list-row")):
+            row.set_class(index in self.marked, "field-list-marked")
 
     def action_cursor_up(self) -> None:
         if self.cursor:

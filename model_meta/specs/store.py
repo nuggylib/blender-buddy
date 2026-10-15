@@ -1,7 +1,8 @@
 """Read and write the spec files in a specs directory.
 
-`create` writes a new spec and refuses to overwrite; `update_armature` and
-`add_mesh_role` patch an existing one with an atomic replace. `read`,
+`create` writes a new spec and refuses to overwrite; `update_armature`,
+`rename_bone` and the mesh role writes patch an existing one with an atomic
+replace. `read`,
 `list_specs` and `count` are read-only and never create the directory — a fresh
 install has no empty `specs/` folder sitting in its config directory until the
 user makes a spec.
@@ -121,6 +122,31 @@ def update_armature(
         armature["parenting"] = parenting.merge(
             armature.get("parenting", {}), add_parenting
         )
+    _replace(path, document)
+
+
+def rename_bone(
+    path: Path,
+    name: str,
+    new_name: str,
+    *,
+    set_inverses: Mapping[str, str] | None = None,
+) -> None:
+    """Re-read the spec and rename one required bone in place, touching nothing else.
+
+    `set_inverses` is applied to `bone_name_inverses`. Raises `ValueError` if
+    `name` is gone or `new_name` is another required bone, or like `read`, or
+    `OSError` on write.
+    """
+    document = read(path)
+    bones = required_bones(document)
+    if name not in bones:
+        raise ValueError(f"'{name}' is no longer a required bone.")
+    if new_name != name and new_name in bones:
+        raise ValueError(f"'{new_name}' is already required.")
+    armature = document["armature"]
+    armature["required_bones"] = [new_name if b == name else b for b in bones]
+    armature.setdefault("bone_name_inverses", {}).update(set_inverses or {})
     _replace(path, document)
 
 

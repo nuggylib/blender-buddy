@@ -30,11 +30,15 @@ disk. **No Textual, no UI.**
   values, free the most segments that still vary, and are kept only if they
   resolve to exactly the intended pairs and keep `is_valid`. Anything else is
   written as **exact names**. Other syntaxes (`*`, regex) just match literally.
+  `is_stale(pattern, old, new)`: the pattern matches a renamed bone's old name
+  but not its new one. `stale_keys(parenting, old, new)`: keys whose key or a
+  child pattern `is_stale`.
 - `mesh_roles.py` — pure `mesh_roles` logic. `validate_name` (trimmed,
   non-empty, unique by exact compare) and `infer_vtx_grp(checked, required)`:
   the `parenting`-syntax pattern (`generalize`, 63-byte limit) that `matches`
   **exactly** the checked bones, else `ValueError` naming why (incl. any extra
-  bones it would match). Every `{n}` is free for now.
+  bones it would match). Every `{n}` is free for now. `stale_roles(roles, old,
+  new)`: roles whose `vtx_grp` matches `old` but not `new`.
 - `store.py` — the filesystem: `create(specs_dir, model_type)` writes a new
   skeleton (raising `FileExistsError` rather than overwriting),
   `list_specs(specs_dir)` classifies every spec as `OK` / `UNREADABLE` /
@@ -55,9 +59,13 @@ disk. **No Textual, no UI.**
   `update_mesh_role(path, name, new_name, vtx_grp)` re-reads, raises
   `ValueError` when `name` is gone or `new_name` is another role, and rewrites
   that one role in place — same position, other fields kept.
+  `rename_bone(path, name, new_name, set_inverses=)` re-reads, raises
+  `ValueError` when `name` is gone or `new_name` is another required bone, and
+  replaces it in place, applying `set_inverses`. Parenting and mesh roles are
+  never rewritten.
 
 ## Updates replace atomically; `create` uses O_EXCL
-`update_armature`, `add_mesh_role` and `update_mesh_role` write a sibling `.tmp` and `os.replace`
+`update_armature`, `rename_bone`, `add_mesh_role` and `update_mesh_role` write a sibling `.tmp` and `os.replace`
 it, like `config/store.py`: replacing *is* the point of an update, and a crash never
 leaves a half-written spec. `create` deliberately does not: a replace would
 *overwrite* the existing file, defeating

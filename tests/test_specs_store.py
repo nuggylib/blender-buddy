@@ -596,3 +596,72 @@ def test_update_mesh_role_leaves_no_tmp_behind(tmp_path):
     store.update_mesh_role(path, "body", "hull", "body")
 
     assert sorted(p.name for p in tmp_path.iterdir()) == ["vehicle.json"]
+
+
+# --- rename_bone -----------------------------------------------------------
+
+
+def _rigged(tmp_path):
+    document = schema.skeleton("vehicle")
+    document["armature"]["object_name"] = "Rig"
+    document["armature"]["required_bones"] = ["root", "arm.L", "arm.R"]
+    document["armature"]["bone_name_inverses"] = {".front": ".rear"}
+    document["armature"]["parenting"] = {"root": ["arm.{1}"]}
+    document["mesh_roles"] = {"arm": {"vtx_grp": "arm.{1}"}}
+    return _write(tmp_path, "vehicle", document), document
+
+
+def test_rename_bone_keeps_position_and_every_other_key(tmp_path):
+    path, document = _rigged(tmp_path)
+    store.rename_bone(path, "arm.L", "upperarm.L")
+
+    after = json.loads(path.read_text(encoding="utf-8"))
+    document["armature"]["required_bones"] = ["root", "upperarm.L", "arm.R"]
+    assert after == document
+
+
+def test_rename_bone_applies_set_inverses(tmp_path):
+    path, _ = _rigged(tmp_path)
+    store.rename_bone(
+        path,
+        "arm.L",
+        "arm.upper.L",
+        set_inverses={".upper": ".lower", ".lower": ".upper"},
+    )
+
+    assert store.bone_name_inverses(store.read(path)) == {
+        ".front": ".rear",
+        ".upper": ".lower",
+        ".lower": ".upper",
+    }
+
+
+def test_rename_bone_to_its_own_name_is_accepted(tmp_path):
+    path, document = _rigged(tmp_path)
+    store.rename_bone(path, "arm.L", "arm.L")
+
+    assert json.loads(path.read_text(encoding="utf-8")) == document
+
+
+@pytest.mark.parametrize(
+    ("name", "new_name", "message"),
+    [
+        ("leg.L", "leg.R", "'leg.L' is no longer a required bone."),
+        ("arm.L", "arm.R", "'arm.R' is already required."),
+    ],
+)
+def test_rename_bone_rejects_and_writes_nothing(tmp_path, name, new_name, message):
+    path, _ = _rigged(tmp_path)
+    before = path.read_bytes()
+
+    with pytest.raises(ValueError, match=message):
+        store.rename_bone(path, name, new_name)
+
+    assert path.read_bytes() == before
+
+
+def test_rename_bone_leaves_no_tmp_behind(tmp_path):
+    path, _ = _rigged(tmp_path)
+    store.rename_bone(path, "root", "base")
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["vehicle.json"]
