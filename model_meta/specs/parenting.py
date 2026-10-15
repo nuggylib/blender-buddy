@@ -104,6 +104,18 @@ def merge(
     return merged
 
 
+def stale_keys(parenting: Mapping[str, Sequence[str]], old: str, new: str) -> list[str]:
+    """The keys whose key or a child pattern matches `old` but not `new`."""
+    return [
+        key
+        for key, patterns in parenting.items()
+        if any(
+            match(pattern, old) is not None and match(pattern, new) is None
+            for pattern in [key, *patterns]
+        )
+    ]
+
+
 def generalize(names: Sequence[str]) -> str | None:
     """`names` with `{n}` wherever they differ, or `None` if bases or lengths do."""
     split = [name.split(".") for name in names]
