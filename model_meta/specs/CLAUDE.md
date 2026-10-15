@@ -30,8 +30,9 @@ disk. **No Textual, no UI.**
   values, free the most segments that still vary, and are kept only if they
   resolve to exactly the intended pairs and keep `is_valid`. Anything else is
   written as **exact names**. Other syntaxes (`*`, regex) just match literally.
-  `stale_keys(parenting, old, new)`: keys whose key or a child pattern matches
-  a renamed bone's old name but not its new one.
+  `is_stale(pattern, old, new)`: the pattern matches a renamed bone's old name
+  but not its new one. `stale_keys(parenting, old, new)`: keys whose key or a
+  child pattern `is_stale`.
 - `mesh_roles.py` — pure `mesh_roles` logic. `validate_name` (trimmed,
   non-empty, unique by exact compare) and `infer_vtx_grp(checked, required)`:
   the `parenting`-syntax pattern (`generalize`, 63-byte limit) that `matches`
