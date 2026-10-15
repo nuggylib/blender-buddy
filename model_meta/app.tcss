@@ -230,5 +230,6 @@ MeshRolesFormScreen .field-list:focus .field-list-highlighted {
 
 /* Rows a rename left unmatched (FieldList.marked), while its warning shows. */
 ArmatureFormScreen .field-list-marked {
+    background: $error-muted;
     color: $text-error;
 }
