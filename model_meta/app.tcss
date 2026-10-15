@@ -227,3 +227,8 @@ ArmatureFormScreen .field-list:focus .field-list-highlighted,
 MeshRolesFormScreen .field-list:focus .field-list-highlighted {
     background: $accent 30%;
 }
+
+/* Rows a rename left unmatched (FieldList.marked), while its warning shows. */
+ArmatureFormScreen .field-list-marked {
+    color: $text-error;
+}

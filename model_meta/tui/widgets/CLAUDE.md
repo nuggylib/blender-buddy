@@ -66,6 +66,9 @@ in the screen that owns it.
   `.field-list-highlighted`, and a click highlights the clicked row's item.
   `Selected.index` is the highlighted item, `None` without a cursor or items.
   On: `#role-list` and `#bone-list`.
+  **`marked`** (a frozenset of *line* indices, so a child line can be marked
+  alone) adds `.field-list-marked` to those rows. Assigning `lines` clears it,
+  so set it after them. On: `#parenting-list`.
 
 ## Conventions
 - **A widget never navigates.** It names where it leads (`target`) and posts a
