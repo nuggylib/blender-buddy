@@ -3,8 +3,10 @@
 Each field shows read-only until selected. Enter in the armature-name editor
 saves it (blank clears it). Each bone: type the name, answer one inline
 question per segment with no known inverse, then confirm a pre-checked
-checklist of its variants. The name logic lives in `specs.bones`; this screen
-only sequences it and writes via `specs.store.update_armature`.
+checklist of its variants. The bone list has a cursor: `a` adds, and Enter on
+a bone renames it under the same rules, minus the checklist, in one
+`specs.store.rename_bone` write that warns of parenting and mesh roles left
+unmatched. The name logic lives in `specs.bones`; this screen only sequences it.
 
 **Full chain first:** variants are computed only once `next_missing` returns
 `None`, and a bone's pending inverse answers are written together, once.
@@ -35,7 +37,7 @@ from textual.widgets import (
     Static,
 )
 
-from model_meta.specs import bones, parenting, store
+from model_meta.specs import bones, mesh_roles, parenting, store
 from model_meta.tui.widgets.field_list import FieldList
 
 _EMPTY = "No required bones yet."
@@ -58,7 +60,7 @@ _FIELDS = {view[1:]: field for field, view in _VIEWS.items()}
 
 @dataclass
 class _Bone:
-    """The bone being added. `file_inverses` is the spec's map when it started."""
+    """The bone being added or renamed. `file_inverses` is the spec's map then."""
 
     name: str
     file_inverses: dict[str, str]
@@ -84,8 +86,9 @@ class ArmatureFormScreen(Screen):
     Fields show read-only in `FieldList`s; selecting one opens its editor and
     closes any other. The name and each confirmed bone are written on Enter, so
     leaving never loses work. `escape` closes the name editor unsaved, steps
-    back one question mid-bone, clears a non-empty idle bone field, closes
-    the editor from an empty one, and leaves when no editor is open. `q` is
+    back one question mid-bone, clears a non-empty idle bone field (a rename
+    closes unsaved instead), closes the editor from an empty one, and leaves
+    when no editor is open. `a` works only from the bone list. `q` is
     shadowed: the form holds Inputs and a Button.
     """
 
@@ -148,6 +151,8 @@ class ArmatureFormScreen(Screen):
         self._skipped = False
         self._picked: list[str] = []
         self._editing: str | None = None
+        self._original: str | None = None
+        self._bone_names: list[str] = []
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -168,7 +173,12 @@ class ArmatureFormScreen(Screen):
         with Horizontal(id="armature-columns"):
             with Vertical(id="bone-column"):
                 with Vertical(id="bone-editor", classes="editor"):
-                    yield Static("Bone name", classes="config-detail")
+                    yield Static(
+                        "Bone name",
+                        id="bone-name-label",
+                        classes="config-detail",
+                        markup=False,
+                    )
                     yield Input(id="bone-name")
                     yield Vertical(id="bone-question")
                 yield FieldList(
@@ -238,7 +248,7 @@ class ArmatureFormScreen(Screen):
         name = self.query_one("#bone-name", Input)
         bone = self._bone
         if bone is None:
-            if name.value:
+            if name.value and self._original is None:
                 name.value = ""
             else:
                 await self._close()
@@ -261,7 +271,11 @@ class ArmatureFormScreen(Screen):
 
     @on(FieldList.Selected)
     async def _on_selected(self, event: FieldList.Selected) -> None:
-        await self._edit(_FIELDS[event.control.id or ""])
+        field = _FIELDS[event.control.id or ""]
+        if field == "bones" and event.index is not None:
+            await self._edit_bone(self._bone_names[event.index])
+        else:
+            await self._edit(field)
 
     async def _edit(self, field: str) -> None:
         """Open `field`'s editor, closing any other; one is open at a time."""
@@ -269,7 +283,7 @@ class ArmatureFormScreen(Screen):
         if field == "parenting" and not self._parents:
             self._status(_SKIPPED if self._skipped else _NO_PARENTS)
             return
-        if self._editing != field:
+        if self._editing != field or self._original is not None:
             await self._close()
             self._editing = field
             self.query_one(_EDITORS[field]).display = True
@@ -278,11 +292,35 @@ class ArmatureFormScreen(Screen):
                 self.query_one(_VIEWS[field]).display = False
         self._focus_editor()
 
+    async def _edit_bone(self, name: str) -> None:
+        """Open the bone editor to rename `name`, closing any other editor."""
+        self._status("")
+        if self._editing == "bones" and self._original == name:
+            self._focus_editor()
+            return
+        try:
+            document = store.read(self.path)
+        except (OSError, ValueError) as error:
+            self._status(f"Could not read the spec: {_reason(error)}")
+            return
+        if name not in store.required_bones(document):
+            self._status(f"'{name}' is no longer a required bone.")
+            self._show_bones()
+            return
+        await self._close()
+        self._editing = "bones"
+        self._original = name
+        self.query_one("#bone-name-label", Static).update(f"Rename '{name}'")
+        self.query_one("#bone-name", Input).value = name
+        self.query_one("#bone-editor").display = True
+        self._focus_editor()
+
     def _focus_editor(self) -> None:
         if self._editing == "name":
             self.query_one("#armature-name", Input).focus()
         elif self._editing == "bones":
-            self.query_one("#bone-name", Input).focus()
+            asking = self._bone is not None and self._bone.asking is not None
+            self.query_one("#bone-inverse" if asking else "#bone-name").focus()
         elif self._editing == "parenting":
             self.query_one("#child-bones" if self._picked else "#parent-bones").focus()
 
@@ -295,8 +333,10 @@ class ArmatureFormScreen(Screen):
             self.query_one(_VIEWS[field]).display = True
         elif field == "bones":
             self._bone = None
+            self._original = None
             await self._clear_question()
             self.query_one("#bone-name", Input).value = ""
+            self.query_one("#bone-name-label", Static).update("Bone name")
         else:
             await self._drop_children()
             self.query_one("#parent-bones", SelectionList).deselect_all()
@@ -334,7 +374,10 @@ class ArmatureFormScreen(Screen):
             self._status(f"Could not read the spec: {_reason(error)}")
             return
         required = store.required_bones(document)
-        if name in required:
+        if self._original is not None and self._original not in required:
+            self._status(f"'{self._original}' is no longer a required bone.")
+            return
+        if name in required and name != self._original:
             self._status(f"'{name}' is already required.")
             return
         self._bone = _Bone(name, dict(store.bone_name_inverses(document)), required)
@@ -482,6 +525,8 @@ class ArmatureFormScreen(Screen):
         if segment is not None:
             await self._ask(segment, "")
             return True
+        if self._original is not None:
+            return await self._rename()
         names = bones.variants(bone.name, known)
         too_long = next((name for name in names if bones.validate_name(name)), None)
         if too_long is not None:
@@ -514,6 +559,43 @@ class ArmatureFormScreen(Screen):
         name.focus()
         self._show_bones()
         return True
+
+    async def _rename(self) -> bool:
+        """Write the rename and its pending inverses at once, then close."""
+        bone, original = self._bone, self._original
+        assert bone is not None and original is not None
+        try:
+            store.rename_bone(
+                self.path, original, bone.name, set_inverses=bone.pending()
+            )
+        except (OSError, ValueError) as error:
+            self._status(f"Could not write the spec: {_reason(error)}")
+            return False
+        await self._close()
+        self._show_bones()
+        if bone.name in self._bone_names:
+            bone_list = self.query_one("#bone-list", FieldList)
+            bone_list.highlighted = self._bone_names.index(bone.name)
+        self._status(f"Bone '{bone.name}' saved.{self._stale(original, bone.name)}")
+        return True
+
+    def _stale(self, old: str, new: str) -> str:
+        """A warning naming what matched `old` but not `new`, or `""`."""
+        try:
+            document = store.read(self.path)
+        except (OSError, ValueError):
+            return ""
+        keys = parenting.stale_keys(store.parenting_map(document), old, new)
+        roles = mesh_roles.stale_roles(store.mesh_roles(document), old, new)
+        found = []
+        if keys:
+            found.append(f"parenting {_quoted(keys)}")
+        if roles:
+            found.append(f"mesh role{'s' * (len(roles) > 1)} {_quoted(roles)}")
+        if not found:
+            return ""
+        them = "them" if len(keys) + len(roles) > 1 else "it"
+        return f" '{old}' was matched by {' and '.join(found)} — update {them}."
 
     def _write(self, **changes) -> bool:
         try:
@@ -576,6 +658,7 @@ class ArmatureFormScreen(Screen):
             self._status(f"Could not read the spec: {_reason(error)}")
             return
         required = store.required_bones(document)
+        self._bone_names = list(required)
         self.query_one("#bone-list", FieldList).lines = tuple(
             (name, 0) for name in required
         )
@@ -614,6 +697,10 @@ def _entry_lines(entries: dict[str, list[str]]) -> list[tuple[str, int]]:
         for key, patterns in entries.items()
         for line in [(key, 0), *((pattern, 1) for pattern in patterns)]
     ]
+
+
+def _quoted(names: list[str]) -> str:
+    return ", ".join(f"'{name}'" for name in names)
 
 
 def _reason(error: Exception) -> str:
