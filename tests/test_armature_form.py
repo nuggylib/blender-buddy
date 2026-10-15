@@ -825,6 +825,14 @@ def _label(app):
     return str(app.screen.query_one("#bone-name-label", Static).render())
 
 
+def _marked(app):
+    return [
+        str(row.render())
+        for row in _rows(app, "parenting-list")
+        if row.has_class("field-list-marked")
+    ]
+
+
 async def test_enter_on_a_bone_opens_it_for_renaming(tmp_path, monkeypatch):
     path = _arms(tmp_path)
     app = _app(tmp_path, monkeypatch)
@@ -857,6 +865,16 @@ async def test_rename_writes_in_place_closes_and_warns(tmp_path, monkeypatch):
             "Bone 'upperarm.L' saved. 'arm.L' was matched by parenting 'root' "
             "and mesh role 'arm' — update them."
         )
+        assert _marked(app) == ["arm.{1}"]  # the child line, not its key
+
+        await pilot.press("up")
+        await pilot.pause()
+        assert _marked(app) == ["arm.{1}"]
+
+        await pilot.press("a")
+        await pilot.pause()
+        assert _status(app) == ""
+        assert _marked(app) == []
 
 
 async def test_rename_asks_new_inverses_and_adds_no_variants(tmp_path, monkeypatch):
@@ -895,6 +913,7 @@ async def test_rename_a_pattern_still_covers_has_no_warning(tmp_path, monkeypatc
         assert _armature(path)["required_bones"] == ["root", "arm.C", "arm.R"]
         assert _armature(path)["bone_name_inverses"] == {".C": ".C"}
         assert _status(app) == "Bone 'arm.C' saved."
+        assert _marked(app) == []
 
 
 async def test_rename_warns_with_one_reference(tmp_path, monkeypatch):
@@ -909,6 +928,11 @@ async def test_rename_warns_with_one_reference(tmp_path, monkeypatch):
             "Bone 'base' saved. 'root' was matched by parenting 'root' "
             "and mesh role 'base' — update them."
         )
+        assert _marked(app) == ["root"]
+
+        await _edit_bone(pilot, app, 1)
+        assert _status(app) == ""
+        assert _marked(app) == []
 
 
 async def test_rename_onto_another_bone_is_rejected(tmp_path, monkeypatch):

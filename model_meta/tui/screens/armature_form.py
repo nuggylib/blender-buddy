@@ -6,7 +6,7 @@ question per segment with no known inverse, then confirm a pre-checked
 checklist of its variants. The bone list has a cursor: `a` adds, and Enter on
 a bone renames it under the same rules, minus the checklist, in one
 `specs.store.rename_bone` write that warns of parenting and mesh roles left
-unmatched. The name logic lives in `specs.bones`; this screen only sequences it.
+unmatched, marking those parenting rows red while the warning shows. The name logic lives in `specs.bones`; this screen only sequences it.
 
 **Full chain first:** variants are computed only once `next_missing` returns
 `None`, and a bone's pending inverse answers are written together, once.
@@ -576,16 +576,24 @@ class ArmatureFormScreen(Screen):
         if bone.name in self._bone_names:
             bone_list = self.query_one("#bone-list", FieldList)
             bone_list.highlighted = self._bone_names.index(bone.name)
-        self._status(f"Bone '{bone.name}' saved.{self._stale(original, bone.name)}")
+        warning, marked = self._stale(original, bone.name)
+        self._status(f"Bone '{bone.name}' saved.{warning}")
+        self.query_one("#parenting-list", FieldList).marked = marked
         return True
 
-    def _stale(self, old: str, new: str) -> str:
-        """A warning naming what matched `old` but not `new`, or `""`."""
+    def _stale(self, old: str, new: str) -> tuple[str, frozenset[int]]:
+        """A warning naming what matched `old` but not `new`, and those parenting lines."""
         try:
             document = store.read(self.path)
         except (OSError, ValueError):
-            return ""
-        keys = parenting.stale_keys(store.parenting_map(document), old, new)
+            return "", frozenset()
+        entries = store.parenting_map(document)
+        marked = frozenset(
+            index
+            for index, (pattern, _) in enumerate(_entry_lines(entries))
+            if parenting.is_stale(pattern, old, new)
+        )
+        keys = parenting.stale_keys(entries, old, new)
         roles = mesh_roles.stale_roles(store.mesh_roles(document), old, new)
         found = []
         if keys:
@@ -593,9 +601,9 @@ class ArmatureFormScreen(Screen):
         if roles:
             found.append(f"mesh role{'s' * (len(roles) > 1)} {_quoted(roles)}")
         if not found:
-            return ""
+            return "", marked
         them = "them" if len(keys) + len(roles) > 1 else "it"
-        return f" '{old}' was matched by {' and '.join(found)} — update {them}."
+        return f" '{old}' was matched by {' and '.join(found)} — update {them}.", marked
 
     def _write(self, **changes) -> bool:
         try:
@@ -687,7 +695,9 @@ class ArmatureFormScreen(Screen):
         self.query_one("#parent-bones-skipped").display = self._skipped
 
     def _status(self, text: str) -> None:
+        """Replace the status; any stale-row marks go with the warning they belong to."""
         self.query_one("#bone-status", Static).update(text)
+        self.query_one("#parenting-list", FieldList).marked = frozenset()
 
 
 def _entry_lines(entries: dict[str, list[str]]) -> list[tuple[str, int]]:

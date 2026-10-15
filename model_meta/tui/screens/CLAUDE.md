@@ -141,6 +141,8 @@ in the app (analogous to a route in a web app).
   checklist**, then one `store.rename_bone` write, close, cursor on the bone.
   `#bone-status` then names parenting keys and mesh roles that matched the old
   name but not the new one (`stale_keys` / `stale_roles`) — never rewritten.
+  The `#parenting-list` rows whose pattern `is_stale` are marked red
+  (`FieldList.marked`) while that warning shows: `_status` clears the marks.
   `escape` in a rename steps back a question, then closes unsaved.
   **Two columns** under the name/status: bones on the left, parenting on the
   right. **Parenting:** `#parenting-editor` sits above the list.
