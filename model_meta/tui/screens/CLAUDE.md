@@ -133,6 +133,15 @@ in the app (analogous to a route in a web app).
   the editor from an empty one. Failures keep the field's text, show
   `#bone-status`, and write nothing. User-typed names render with
   `markup=False` (`rich.markup.escape` misses uppercase tags like `[L]`).
+  **Cursor, `a` and rename:** `#bone-list` has a `FieldList` cursor. `a`
+  (`check_action`: only while `#bone-list` has focus) opens Add; Enter on an
+  empty list does too. Enter or a click on a bone opens the same editor as a
+  rename (`_original`; `#bone-name-label` reads `Rename '<name>'`): the add
+  rules minus its own name, inverse questions for new segments, **no variant
+  checklist**, then one `store.rename_bone` write, close, cursor on the bone.
+  `#bone-status` then names parenting keys and mesh roles that matched the old
+  name but not the new one (`stale_keys` / `stale_roles`) — never rewritten.
+  `escape` in a rename steps back a question, then closes unsaved.
   **Two columns** under the name/status: bones on the left, parenting on the
   right. **Parenting:** `#parenting-editor` sits above the list.
   `#parent-bones` is a checklist of `required_bones`; **Choose children**
