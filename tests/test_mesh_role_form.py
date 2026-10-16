@@ -126,10 +126,11 @@ async def test_shows_only_the_role_with_focus_on_its_fields(tmp_path, monkeypatc
         assert _text(app, "#role-title") == "Mesh role — wheel"
         assert _lines(app, "role-name-view") == ["wheel"]
         assert _lines(app, "role-fields") == [
-            "vtx_grp",
-            "wheel.{1}",
+            "vtx_grp: wheel.{1}",
             "matches wheel.L, wheel.R",
         ]
+        description = app.screen.query("#role-fields .field-list-row")[1]
+        assert description.has_class("field-list-child")
         assert _focused_id(app) == "role-fields"
         assert not app.screen.query_one("#role-name").display
         assert not app.screen.query_one("#vtx-grp-editor").display
@@ -137,22 +138,22 @@ async def test_shows_only_the_role_with_focus_on_its_fields(tmp_path, monkeypatc
 
 async def test_hand_written_fields_are_listed_but_not_editable(tmp_path, monkeypatch):
     path = _spec(tmp_path)
-    role = {"mesh_regex": "^w", "count": 2, "texture_maps": ["albedo"], "x": []}
+    role = {
+        "mesh_regex": "^w",
+        "count": 2,
+        "texture_maps": ["albedo", "normal"],
+        "x": [],
+    }
     _set_role(path, "wheel", role)
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path, "wheel")
         assert _lines(app, "role-fields") == [
-            "vtx_grp",
-            "not set",
-            "mesh_regex",
-            "^w",
-            "count",
-            "2",
-            "texture_maps",
-            "albedo",
-            "x",
-            "(empty)",
+            "vtx_grp: not set",
+            "mesh_regex: ^w",
+            "count: 2",
+            "texture_maps: albedo, normal",
+            "x: (empty)",
         ]
 
         before = path.read_bytes()
@@ -256,10 +257,10 @@ async def test_vtx_grp_editor_prefills_and_saves_the_pattern_alone(
         assert _roles(path)["wheel"] == {"vtx_grp": "wheel.L", "weight": 1.0}
         assert _status(app) == "Mesh role 'wheel' saved."
         assert not app.screen.query_one("#vtx-grp-editor").display
-        assert _lines(app, "role-fields")[:3] == [
-            "vtx_grp",
-            "wheel.L",
+        assert _lines(app, "role-fields") == [
+            "vtx_grp: wheel.L",
             "matches wheel.L",
+            "weight: 1.0",
         ]
         assert _focused_id(app) == "role-fields"
         assert app.screen.query_one("#role-fields").highlighted == 0
@@ -293,8 +294,7 @@ async def test_vtx_grp_needs_required_bones(tmp_path, monkeypatch):
     async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path, "wheel")
         assert _lines(app, "role-fields") == [
-            "vtx_grp",
-            "wheel.{1}",
+            "vtx_grp: wheel.{1}",
             "matches no required bone",
         ]
         await _select(pilot, app, "role-fields", 0)
@@ -392,6 +392,6 @@ async def test_markup_looking_text_renders_literally(tmp_path, monkeypatch):
         await _open(pilot, app, path, "arm[L]")
         assert _text(app, "#role-title") == "Mesh role — arm[L]"
         assert _lines(app, "role-name-view") == ["arm[L]"]
-        assert _lines(app, "role-fields") == ["vtx_grp", "arm[L]", "matches arm[L]"]
+        assert _lines(app, "role-fields") == ["vtx_grp: arm[L]", "matches arm[L]"]
         await _select(pilot, app, "role-fields", 0)
         assert _text(app, "#role-bones-label") == "Bones for 'arm[L]'"

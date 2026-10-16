@@ -178,9 +178,10 @@ in the app (analogous to a route in a web app).
   form's shape: `#role-name-view` (a `FieldList`) swaps for a prefilled
   `#role-name` Input whose Enter renames alone (`update_mesh_role` with no
   `vtx_grp`; the add rules minus its own name). `#role-fields` (cursor) lists
-  every field the role holds, key then value indented like `#parenting-list`
-  (`_field_lines`); `vtx_grp` is always listed (`not set` when absent) with a
-  `matches …` line. Enter on `vtx_grp` opens `#vtx-grp-editor`: required bones
+  every field the role holds as one `key: value` line, with a muted
+  description line beneath where one helps (`_field_lines`; the depth-1
+  `.field-list-child` row, `$text-muted`). `vtx_grp` is always listed (`not
+  set` when absent) and described by the bones it `matches`. Enter on `vtx_grp` opens `#vtx-grp-editor`: required bones
   pre-checked with its matches, live preview, **Save** writes the pattern
   alone. Other fields say they can't be edited yet. One editor at a time;
   `escape` closes it unsaved, else leaves. Failures keep text and checks and

@@ -2,8 +2,9 @@
 
 Pushed from the mesh roles list for one role, and dismissed with the role's
 current name. The name shows read-only at the top; Enter swaps in an Input whose
-Enter renames the role alone. Every other field the role holds is listed below,
-key then value, the way the armature form lists parenting. Enter on `vtx_grp`
+Enter renames the role alone. Every other field the role holds is listed below
+as `key: value`, with a muted description beneath where one helps (the bones a
+`vtx_grp` matches). Enter on `vtx_grp`
 opens the required-bones checklist with its matches pre-checked, and **Save**
 writes the inferred pattern alone. Other fields show but can't be edited yet.
 The rules live in `specs.mesh_roles`; writes go through
@@ -67,6 +68,9 @@ class MeshRoleFormScreen(Screen[str]):
     MeshRoleFormScreen #role-fields {
         height: 1fr;
         margin-top: 1;
+    }
+    MeshRoleFormScreen #role-fields .field-list-child {
+        color: $text-muted;
     }
     """
 
@@ -303,34 +307,29 @@ class MeshRoleFormScreen(Screen[str]):
 def _field_lines(
     role: dict, required: Sequence[str]
 ) -> tuple[list[str], list[tuple[str, int]]]:
-    """Each field's key at depth 0 and its value beneath; `vtx_grp` always shown."""
+    """`key: value` per field, any description beneath; `vtx_grp` always shown."""
     keys = list(role) if "vtx_grp" in role else ["vtx_grp", *role]
     lines: list[tuple[str, int]] = []
     for key in keys:
-        lines.append((key, 0))
-        values = (
-            _vtx_grp_values(role.get("vtx_grp"), required)
-            if key == "vtx_grp"
-            else _values(role[key])
-        )
-        lines.extend((value, 1) for value in values)
+        if key == "vtx_grp":
+            pattern = role.get("vtx_grp")
+            lines.append((f"vtx_grp: {pattern or 'not set'}", 0))
+            if pattern:
+                lines.append((_matches(pattern, required), 1))
+        else:
+            lines.append((f"{key}: {_value(role[key])}", 0))
     return keys, lines
 
 
-def _vtx_grp_values(pattern: str | None, required: Sequence[str]) -> list[str]:
-    if pattern is None:
-        return ["not set"]
+def _matches(pattern: str, required: Sequence[str]) -> str:
     matched = mesh_roles.matches(pattern, required)
-    return [
-        pattern,
-        f"matches {', '.join(matched)}" if matched else "matches no required bone",
-    ]
+    return f"matches {', '.join(matched)}" if matched else "matches no required bone"
 
 
-def _values(value: object) -> list[str]:
+def _value(value: object) -> str:
     if isinstance(value, list):
-        return [_text(item) for item in value] or ["(empty)"]
-    return [_text(value)]
+        return ", ".join(_text(item) for item in value) or "(empty)"
+    return _text(value)
 
 
 def _text(value: object) -> str:
