@@ -1,22 +1,20 @@
-"""The mesh roles form — add mesh role after mesh role, or edit one.
+"""The mesh roles form — add mesh role after mesh role, or open one.
 
 The role list shows read-only, with a cursor. `a` adds: type the role's name,
 then check the required bones its vertex group covers; **Add** writes the
 inferred `vtx_grp` and returns to an empty name for the next one. Enter on a
-role edits it: its name and checks are prefilled, and **Save** writes via
-`specs.store.update_mesh_role` and closes. Both follow the same rules, which
-live in `specs.mesh_roles`; this screen only sequences them.
+role pushes `MeshRoleFormScreen`, where that one role's fields are edited; on
+return the cursor follows the role's current name. The rules live in
+`specs.mesh_roles`; this screen only sequences them.
 """
 
 from __future__ import annotations
 
-from collections.abc import Collection
 from pathlib import Path
-from typing import Literal
 
 from rich.markup import escape
 from rich.text import Text
-from textual import on
+from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
@@ -24,6 +22,7 @@ from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, SelectionList, Static
 
 from model_meta.specs import mesh_roles, store
+from model_meta.tui.screens.mesh_role_form import MeshRoleFormScreen
 from model_meta.tui.widgets.field_list import FieldList
 
 _EMPTY = "No mesh roles yet."
@@ -33,12 +32,10 @@ _NO_BONES = "Add required bones first."
 class MeshRolesFormScreen(Screen):
     """Stay-on form for a spec's mesh roles, pushed as an instance.
 
-    One editor at a time (`_mode`); opening another discards the open one
-    unwritten. `escape` in Add hides the bones question back to the name,
-    clears a non-empty name, and closes the editor from an empty one; in Edit
-    it closes unsaved; with no editor open it leaves. `a` works only with no
-    editor open or from the list, so a stray `a` can't discard an edit. `q` is
-    shadowed: the form holds Inputs and a Button.
+    Opening a role discards an Add in progress unwritten. `escape` hides the
+    bones question back to the name, clears a non-empty name, closes the Add
+    editor from an empty one, and leaves when it is closed. `q` is shadowed:
+    the form holds an Input and a Button.
     """
 
     BINDINGS = [
@@ -76,9 +73,8 @@ class MeshRolesFormScreen(Screen):
     def __init__(self, path: Path) -> None:
         super().__init__()
         self.path = path
-        self._mode: Literal["add", "edit"] | None = None
+        self._adding = False
         self._name: str | None = None
-        self._original: str | None = None
         self._role_names: list[str] = []
 
     def compose(self) -> ComposeResult:
@@ -114,21 +110,11 @@ class MeshRolesFormScreen(Screen):
 
     # -- bindings ----------------------------------------------------------
 
-    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool:
-        if action == "add":
-            focused = self.focused
-            return self._mode is None or (
-                focused is not None and focused.id == "role-list"
-            )
-        return True
-
     def action_back(self) -> None:
         self._status("")
         name = self.query_one("#role-name", Input)
-        if self._mode is None:
+        if not self._adding:
             self.app.pop_screen()
-        elif self._mode == "edit":
-            self._close()
         elif self._name is not None:
             self._drop_question()
             name.focus()
@@ -139,49 +125,43 @@ class MeshRolesFormScreen(Screen):
 
     def action_add(self) -> None:
         self._status("")
-        if self._mode != "add":
+        if not self._adding:
             if self._gate() is None:
                 return
-            self._close()
-            self._open("add")
+            self._open()
         target = "#role-name" if self._name is None else "#role-bones"
         self.query_one(target).focus()
 
     def action_noop(self) -> None:
         """Absorb `q` so the app's global quit can't fire from the form."""
 
-    # -- editors -----------------------------------------------------------
+    # -- the list and the Add editor ---------------------------------------
 
     @on(FieldList.Selected, "#role-list")
     def _on_selected(self, event: FieldList.Selected) -> None:
         if event.index is None:
             self.action_add()
-        else:
-            self._edit(self._role_names[event.index])
-
-    def _edit(self, name: str) -> None:
-        self._status("")
-        if self._mode == "edit" and self._original == name:
-            self.query_one("#role-bones").focus()
             return
-        document = self._gate()
+        self._status("")
+        name = self._role_names[event.index]
+        document = self._read()
         if document is None:
             return
-        role = store.mesh_roles(document).get(name)
-        if role is None:
+        if name not in store.mesh_roles(document):
             self._status(f"'{name}' is no longer a mesh role.")
             self._show_roles()
             return
         self._close()
-        self._open("edit")
-        self._original = name
-        self.query_one("#role-name", Input).value = name
-        required = store.required_bones(document)
-        pattern = role.get("vtx_grp")
-        checked = mesh_roles.matches(pattern, required) if pattern else []
-        self._ask(name, required, checked)
-        if pattern and not checked:
-            self._status(f"Its vtx_grp '{pattern}' matches no required bone.")
+        self._open_role(name)
+
+    @work(exclusive=True, group="role-view")
+    async def _open_role(self, name: str) -> None:
+        """Push the role's own view; on return, follow it under its current name."""
+        current = await self.app.push_screen_wait(MeshRoleFormScreen(self.path, name))
+        self._show_roles()
+        if current in self._role_names:
+            role_list = self.query_one("#role-list", FieldList)
+            role_list.highlighted = self._role_names.index(current)
 
     def _gate(self) -> dict | None:
         """A fresh read when the spec has bones to check, else `None` (status set)."""
@@ -191,25 +171,19 @@ class MeshRolesFormScreen(Screen):
             return None
         return document
 
-    def _open(self, mode: Literal["add", "edit"]) -> None:
-        self._mode = mode
-        self.query_one("#confirm-role", Button).label = (
-            "Add" if mode == "add" else "Save"
-        )
+    def _open(self) -> None:
+        self._adding = True
         self.query_one("#role-editor").display = True
-        self.refresh_bindings()
 
     def _close(self) -> None:
-        """Hide the open editor, dropping its in-progress state unwritten."""
-        if self._mode is None:
+        """Hide the Add editor, dropping its in-progress state unwritten."""
+        if not self._adding:
             return
-        self._mode = None
-        self._original = None
+        self._adding = False
         self._drop_question()
         self.query_one("#role-name", Input).value = ""
         self.query_one("#role-editor").display = False
         self.query_one("#role-list", FieldList).focus()
-        self.refresh_bindings()
 
     # -- the form ----------------------------------------------------------
 
@@ -217,14 +191,6 @@ class MeshRolesFormScreen(Screen):
     def _on_name(self, event: Input.Submitted) -> None:
         self._status("")
         name = event.value.strip()
-        if self._mode == "edit":
-            if self._check_name(name) is not None:
-                self._name = name
-                self.query_one("#role-bones-label", Static).update(
-                    f"Bones for '{name}'"
-                )
-                self.query_one("#role-bones").focus()
-            return
         self._drop_question()
         document = self._check_name(name)
         if document is not None:
@@ -237,12 +203,6 @@ class MeshRolesFormScreen(Screen):
     @on(Button.Pressed, "#confirm-role")
     def _on_confirm(self) -> None:
         self._status("")
-        if self._mode == "edit":
-            self._save()
-        else:
-            self._add()
-
-    def _add(self) -> None:
         name = self._name
         if name is None:
             return
@@ -261,53 +221,25 @@ class MeshRolesFormScreen(Screen):
         self._show_roles()
         self._status(f"Mesh role '{name}' added.")
 
-    def _save(self) -> None:
-        original = self._original
-        assert original is not None
-        name = self.query_one("#role-name", Input).value.strip()
-        if self._check_name(name) is None:
-            return
-        pattern = self._infer_or_report()
-        if pattern is None:
-            return
-        try:
-            store.update_mesh_role(self.path, original, name, pattern)
-        except (OSError, ValueError) as error:
-            self._status(f"Could not write the spec: {_reason(error)}")
-            return
-        self._close()
-        self._show_roles()
-        if name in self._role_names:
-            role_list = self.query_one("#role-list", FieldList)
-            role_list.highlighted = self._role_names.index(name)
-        self._status(f"Mesh role '{name}' saved.")
-
     # -- rendering ---------------------------------------------------------
 
     def _check_name(self, name: str) -> dict | None:
-        """A fresh read when `name` is valid, ignoring the role being edited."""
+        """A fresh read when `name` is a valid new role name."""
         document = self._read()
         if document is None:
             return None
-        existing = [
-            role for role in store.mesh_roles(document) if role != self._original
-        ]
-        if error := mesh_roles.validate_name(name, existing):
+        if error := mesh_roles.validate_name(name, store.mesh_roles(document)):
             self._status(error)
             return None
         return document
 
-    def _ask(
-        self, name: str, required: list[str], checked: Collection[str] = ()
-    ) -> None:
-        """Show the bones question for `name`, `checked` pre-checked."""
+    def _ask(self, name: str, required: list[str]) -> None:
+        """Show the bones question for `name`, nothing checked."""
         self._name = name
         self.query_one("#role-bones-label", Static).update(f"Bones for '{name}'")
         checklist = self.query_one("#role-bones", SelectionList)
         checklist.clear_options()
-        checklist.add_options(
-            [(Text(bone), bone, bone in checked) for bone in required]
-        )
+        checklist.add_options([(Text(bone), bone) for bone in required])
         if checklist.option_count:
             checklist.highlighted = 0
         self._preview()
