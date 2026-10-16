@@ -58,7 +58,8 @@ disk. **No Textual, no UI.**
   taken name, and writes only `mesh_roles[name] = {"vtx_grp": …}` the same way.
   `update_mesh_role(path, name, new_name, vtx_grp)` re-reads, raises
   `ValueError` when `name` is gone or `new_name` is another role, and rewrites
-  that one role in place — same position, other fields kept.
+  that one role in place — same position, other fields kept; `vtx_grp=None`
+  keeps its `vtx_grp` (or its lack of one), so a rename alone writes no pattern.
   `rename_bone(path, name, new_name, set_inverses=)` re-reads, raises
   `ValueError` when `name` is gone or `new_name` is another required bone, and
   replaces it in place, applying `set_inverses`. Parenting and mesh roles are

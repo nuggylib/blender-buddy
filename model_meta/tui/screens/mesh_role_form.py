@@ -1,0 +1,340 @@
+"""The mesh role form — one role's name and fields, each edited on its own.
+
+Pushed from the mesh roles list for one role, and dismissed with the role's
+current name. The name shows read-only at the top; Enter swaps in an Input whose
+Enter renames the role alone. Every other field the role holds is listed below
+as `key: value`, with a muted description beneath where one helps (the bones a
+`vtx_grp` matches). Enter on `vtx_grp`
+opens the required-bones checklist with its matches pre-checked, and **Save**
+writes the inferred pattern alone. Other fields show but can't be edited yet.
+The rules live in `specs.mesh_roles`; writes go through
+`specs.store.update_mesh_role`.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Collection, Sequence
+from pathlib import Path
+from typing import Literal
+
+from rich.text import Text
+from textual import on
+from textual.app import ComposeResult
+from textual.binding import Binding
+from textual.containers import Vertical
+from textual.screen import Screen
+from textual.widgets import Button, Footer, Header, Input, SelectionList, Static
+
+from model_meta.specs import mesh_roles, store
+from model_meta.tui.widgets.field_list import FieldList
+
+_NO_BONES = "Add required bones first."
+
+
+class MeshRoleFormScreen(Screen[str]):
+    """One mesh role, pushed as an instance; dismissed with its current name.
+
+    One editor at a time (`_editing`); opening one discards the other
+    unwritten. `escape` closes the open editor unsaved, else leaves. `q` is
+    shadowed: the form holds an Input and a Button.
+    """
+
+    BINDINGS = [
+        Binding("escape", "back", "Back"),
+        Binding("q", "noop", show=False),
+    ]
+
+    DEFAULT_CSS = """
+    MeshRoleFormScreen #mesh-role-form {
+        height: auto;
+        padding: 1 2 0 2;
+    }
+    MeshRoleFormScreen #role-status, MeshRoleFormScreen #role-name-view {
+        height: auto;
+    }
+    MeshRoleFormScreen #role-bones {
+        height: auto;
+        max-height: 8;
+    }
+    MeshRoleFormScreen .editor {
+        height: auto;
+        display: none;
+    }
+    MeshRoleFormScreen #role-column {
+        height: 1fr;
+        padding: 0 2;
+    }
+    MeshRoleFormScreen #role-fields {
+        height: 1fr;
+        margin-top: 1;
+    }
+    MeshRoleFormScreen #role-fields .field-list-child {
+        color: $text-muted;
+    }
+    """
+
+    def __init__(self, path: Path, name: str) -> None:
+        super().__init__()
+        self.path = path
+        self.role = name
+        self._editing: Literal["name", "vtx_grp"] | None = None
+        self._field_names: list[str] = []
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="mesh-role-form"):
+            yield Static(
+                self._title(), id="role-title", classes="section-title", markup=False
+            )
+            yield FieldList("Name", "", id="role-name-view", classes="field-list")
+            role_name = Input(id="role-name", classes="editor")
+            role_name.border_title = "Name"
+            yield role_name
+            yield Static("", id="role-status", classes="config-detail", markup=False)
+        with Vertical(id="role-column"):
+            with Vertical(id="vtx-grp-editor", classes="editor"):
+                yield Static(
+                    "", id="role-bones-label", classes="config-detail", markup=False
+                )
+                yield SelectionList[str](id="role-bones")
+                yield Static(
+                    "", id="role-preview", classes="config-detail", markup=False
+                )
+                yield Button("Save", id="save-vtx-grp", variant="primary")
+            yield FieldList(
+                "Fields",
+                "No fields.",
+                cursor=True,
+                id="role-fields",
+                classes="field-list",
+            )
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.query_one("#role-fields", FieldList).focus()
+        self._show()
+
+    # -- bindings ----------------------------------------------------------
+
+    def action_back(self) -> None:
+        self._status("")
+        if self._editing is None:
+            self.dismiss(self.role)
+        else:
+            self._close()
+
+    def action_noop(self) -> None:
+        """Absorb `q` so the app's global quit can't fire from the form."""
+
+    # -- editors -----------------------------------------------------------
+
+    @on(FieldList.Selected, "#role-name-view")
+    def _edit_name(self) -> None:
+        self._status("")
+        self._close()
+        self._editing = "name"
+        self.query_one("#role-name-view").display = False
+        role_name = self.query_one("#role-name", Input)
+        role_name.value = self.role
+        role_name.display = True
+        role_name.focus()
+
+    @on(FieldList.Selected, "#role-fields")
+    def _on_field_selected(self, event: FieldList.Selected) -> None:
+        self._status("")
+        if event.index is None:
+            return
+        field = self._field_names[event.index]
+        if field == "vtx_grp":
+            self._edit_vtx_grp()
+        else:
+            self._status(f"'{field}' can't be edited here yet.")
+
+    def _edit_vtx_grp(self) -> None:
+        if self._editing == "vtx_grp":
+            self.query_one("#role-bones").focus()
+            return
+        document = self._read()
+        if document is None:
+            return
+        required = store.required_bones(document)
+        if not required:
+            self._status(_NO_BONES)
+            return
+        role = store.mesh_roles(document).get(self.role)
+        if role is None:
+            self._status(f"'{self.role}' is no longer a mesh role.")
+            return
+        self._close()
+        self._editing = "vtx_grp"
+        pattern = role.get("vtx_grp")
+        checked = mesh_roles.matches(pattern, required) if pattern else []
+        self._ask(required, checked)
+        if pattern and not checked:
+            self._status(f"Its vtx_grp '{pattern}' matches no required bone.")
+
+    def _close(self) -> None:
+        """Hide the open editor, dropping its in-progress state unwritten."""
+        if self._editing == "name":
+            self.query_one("#role-name", Input).display = False
+            view = self.query_one("#role-name-view", FieldList)
+            view.display = True
+            view.focus()
+        elif self._editing == "vtx_grp":
+            self.query_one("#role-bones", SelectionList).clear_options()
+            self.query_one("#role-preview", Static).update("")
+            self.query_one("#vtx-grp-editor").display = False
+            self.query_one("#role-fields", FieldList).focus()
+        self._editing = None
+
+    # -- the form ----------------------------------------------------------
+
+    @on(Input.Submitted, "#role-name")
+    def _on_name(self, event: Input.Submitted) -> None:
+        self._status("")
+        name = event.value.strip()
+        document = self._read()
+        if document is None:
+            return
+        others = [role for role in store.mesh_roles(document) if role != self.role]
+        if error := mesh_roles.validate_name(name, others):
+            self._status(error)
+            return
+        if not self._write(name):
+            return
+        self.role = name
+        self.query_one("#role-title", Static).update(self._title())
+        self._close()
+        self._show()
+        self._status(f"Mesh role '{name}' saved.")
+
+    @on(SelectionList.SelectedChanged, "#role-bones")
+    def _on_bones_changed(self) -> None:
+        self._preview()
+
+    @on(Button.Pressed, "#save-vtx-grp")
+    def _on_save(self) -> None:
+        self._status("")
+        try:
+            pattern = self._infer()
+        except ValueError as error:
+            self._status(str(error))
+            return
+        if pattern is None or not self._write(self.role, pattern):
+            return
+        self._close()
+        self._show()
+        self.query_one("#role-fields", FieldList).highlighted = self._field_names.index(
+            "vtx_grp"
+        )
+        self._status(f"Mesh role '{self.role}' saved.")
+
+    def _write(self, new_name: str, vtx_grp: str | None = None) -> bool:
+        try:
+            store.update_mesh_role(self.path, self.role, new_name, vtx_grp)
+        except (OSError, ValueError) as error:
+            self._status(f"Could not write the spec: {_reason(error)}")
+            return False
+        return True
+
+    # -- rendering ---------------------------------------------------------
+
+    def _ask(self, required: list[str], checked: Collection[str]) -> None:
+        """Show the bones checklist, `checked` pre-checked."""
+        self.query_one("#role-bones-label", Static).update(f"Bones for '{self.role}'")
+        checklist = self.query_one("#role-bones", SelectionList)
+        checklist.clear_options()
+        checklist.add_options(
+            [(Text(bone), bone, bone in checked) for bone in required]
+        )
+        checklist.highlighted = 0
+        self._preview()
+        self.query_one("#vtx-grp-editor").display = True
+        checklist.focus()
+
+    def _preview(self) -> None:
+        preview = self.query_one("#role-preview", Static)
+        if not self.query_one("#role-bones", SelectionList).selected:
+            preview.update("")
+            return
+        try:
+            pattern = self._infer()
+        except ValueError as error:
+            preview.update(str(error))
+            return
+        preview.update("" if pattern is None else f"vtx_grp: {pattern}")
+
+    def _infer(self) -> str | None:
+        """The `vtx_grp` for the checked bones on a fresh read; raises `ValueError`."""
+        document = self._read()
+        if document is None:
+            return None
+        return mesh_roles.infer_vtx_grp(
+            self.query_one("#role-bones", SelectionList).selected,
+            store.required_bones(document),
+        )
+
+    def _show(self) -> None:
+        document = self._read()
+        if document is None:
+            return
+        role = store.mesh_roles(document).get(self.role)
+        fields = self.query_one("#role-fields", FieldList)
+        if role is None:
+            self._field_names = []
+            fields.lines = ()
+            self._status(f"'{self.role}' is no longer a mesh role.")
+            return
+        self.query_one("#role-name-view", FieldList).lines = ((self.role, 0),)
+        self._field_names, lines = _field_lines(role, store.required_bones(document))
+        fields.lines = tuple(lines)
+
+    def _read(self) -> dict | None:
+        try:
+            return store.read(self.path)
+        except (OSError, ValueError) as error:
+            self._status(f"Could not read the spec: {_reason(error)}")
+            return None
+
+    def _title(self) -> str:
+        return f"Mesh role — {self.role}"
+
+    def _status(self, text: str) -> None:
+        self.query_one("#role-status", Static).update(text)
+
+
+def _field_lines(
+    role: dict, required: Sequence[str]
+) -> tuple[list[str], list[tuple[str, int]]]:
+    """`key: value` per field, any description beneath; `vtx_grp` always shown."""
+    keys = list(role) if "vtx_grp" in role else ["vtx_grp", *role]
+    lines: list[tuple[str, int]] = []
+    for key in keys:
+        if key == "vtx_grp":
+            pattern = role.get("vtx_grp")
+            lines.append((f"vtx_grp: {pattern or 'not set'}", 0))
+            if pattern:
+                lines.append((_matches(pattern, required), 1))
+        else:
+            lines.append((f"{key}: {_value(role[key])}", 0))
+    return keys, lines
+
+
+def _matches(pattern: str, required: Sequence[str]) -> str:
+    matched = mesh_roles.matches(pattern, required)
+    return f"matches {', '.join(matched)}" if matched else "matches no required bone"
+
+
+def _value(value: object) -> str:
+    if isinstance(value, list):
+        return ", ".join(_text(item) for item in value) or "(empty)"
+    return _text(value)
+
+
+def _text(value: object) -> str:
+    return value if isinstance(value, str) else json.dumps(value)
+
+
+def _reason(error: Exception) -> str:
+    return str(getattr(error, "strerror", None) or error)
