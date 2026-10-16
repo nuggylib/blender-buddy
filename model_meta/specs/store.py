@@ -164,12 +164,14 @@ def add_mesh_role(path: Path, name: str, vtx_grp: str) -> None:
     _replace(path, document)
 
 
-def update_mesh_role(path: Path, name: str, new_name: str, vtx_grp: str) -> None:
+def update_mesh_role(
+    path: Path, name: str, new_name: str, vtx_grp: str | None = None
+) -> None:
     """Re-read the spec and rename and re-pattern one role, touching nothing else.
 
-    The role keeps its position and its other fields. Raises `ValueError` if
-    `name` is gone or `new_name` is another role, or like `read`, or `OSError`
-    on write.
+    The role keeps its position and its other fields; `vtx_grp=None` keeps its
+    `vtx_grp` too, or its lack of one. Raises `ValueError` if `name` is gone or
+    `new_name` is another role, or like `read`, or `OSError` on write.
     """
     document = read(path)
     roles = mesh_roles(document)
@@ -179,7 +181,9 @@ def update_mesh_role(path: Path, name: str, new_name: str, vtx_grp: str) -> None
         raise ValueError(f"'{new_name}' is already a mesh role.")
     document["mesh_roles"] = {
         (new_name if key == name else key): (
-            {**role, "vtx_grp": vtx_grp} if key == name else role
+            {**role, "vtx_grp": vtx_grp}
+            if key == name and vtx_grp is not None
+            else role
         )
         for key, role in roles.items()
     }

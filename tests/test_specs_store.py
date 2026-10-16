@@ -574,6 +574,20 @@ def test_update_mesh_role_adds_a_vtx_grp_to_a_role_without_one(tmp_path):
     assert store.mesh_roles(store.read(path))["glass"] == {"vtx_grp": "body"}
 
 
+def test_update_mesh_role_without_a_vtx_grp_only_renames(tmp_path):
+    path, document = _three_roles(tmp_path)
+    store.update_mesh_role(path, "wheel", "tyre")
+    store.update_mesh_role(path, "glass", "window")
+
+    after = json.loads(path.read_text(encoding="utf-8"))
+    assert after["mesh_roles"] == {
+        "body": {"vtx_grp": "body"},
+        "tyre": {"vtx_grp": "wheel.{1}", "weight": 1.0},
+        "window": {},
+    }
+    assert after["hand_added"] is True
+
+
 @pytest.mark.parametrize(
     ("name", "new_name", "message"),
     [
