@@ -156,26 +156,35 @@ in the app (analogous to a route in a web app).
   `escape` leaves. `#parenting-list` and the preview are nested: each key,
   then its child patterns indented beneath it.
   Never name an attribute `_parent` here — it shadows Textual's `DOMNode._parent`.
-- `mesh_roles_form.py` — `MeshRolesFormScreen(path)`, the form for adding and
-  editing mesh roles. Read-only `#role-list` (a `FieldList` with `cursor=True`:
-  each role, its `vtx_grp` indented). One `#role-editor` serves both modes
-  (`_mode`), one at a time: opening either discards the other unwritten. With
-  no `required_bones` neither opens, and `#role-status` says why.
+- `mesh_roles_form.py` — `MeshRolesFormScreen(path)`, the form for adding
+  mesh roles and opening one. Read-only `#role-list` (a `FieldList` with
+  `cursor=True`: each role, its `vtx_grp` indented). With no `required_bones`
+  Add doesn't open, and `#role-status` says why.
   **Add** (`a`, or Enter on an empty list): Enter in `#role-name` validates
   the name and reveals `#role-bones-question` — a `#role-bones` checklist
   refilled from a fresh read, a live `#role-preview` of
   `mesh_roles.infer_vtx_grp` (or why none fits), and `#confirm-role` (**Add**),
   which writes via `add_mesh_role` and returns to an empty `#role-name`.
-  `escape`: hide the question → clear the name → close.
-  **Edit** (Enter or a click on a role): name prefilled, the question shown at
-  once with the bones its `vtx_grp` `matches` pre-checked, focus on the
-  checklist. The name follows the add rules minus its own name, checked on
-  Enter and again at **Save** (so an unsubmitted rename counts). Save writes
-  via `update_mesh_role`, closes, and leaves the cursor on the role. `escape`
-  closes unsaved. `a` is enabled (`check_action`) only with no editor open or
-  from the list, so a stray `a` can't discard an edit. With no editor open,
-  `escape` leaves. Failures keep text and checks and write nothing. No typed
-  pattern. `q` shadowed.
+  `escape`: hide the question → clear the name → close → leave.
+  **Open** (Enter or a click on a role): a fresh read (a role gone by hand is
+  reported, nothing pushed), any Add is discarded unwritten, then
+  `_open_role`, a `@work(exclusive=True, group="role-view")` worker,
+  `push_screen_wait`s `MeshRoleFormScreen` and puts the cursor on the name it
+  returns. Failures keep text and checks and write nothing. No typed pattern.
+  `q` shadowed.
+- `mesh_role_form.py` — `MeshRoleFormScreen(path, name)`, one mesh role,
+  dismissed with its **current** name. The name is the attribute `role`:
+  `DOMNode` already owns `name`. **Read-only until selected**, the armature
+  form's shape: `#role-name-view` (a `FieldList`) swaps for a prefilled
+  `#role-name` Input whose Enter renames alone (`update_mesh_role` with no
+  `vtx_grp`; the add rules minus its own name). `#role-fields` (cursor) lists
+  every field the role holds, key then value indented like `#parenting-list`
+  (`_field_lines`); `vtx_grp` is always listed (`not set` when absent) with a
+  `matches …` line. Enter on `vtx_grp` opens `#vtx-grp-editor`: required bones
+  pre-checked with its matches, live preview, **Save** writes the pattern
+  alone. Other fields say they can't be edited yet. One editor at a time;
+  `escape` closes it unsaved, else leaves. Failures keep text and checks and
+  write nothing. `q` shadowed.
 - `blender_detail.py`, `godot_detail.py` — the other two detail screens
   (`blender-detail`, `godot-detail` in `SCREENS`). Still **placeholders**: they
   render the configured value they own plus a `#placeholder-note`. They exist so
@@ -246,8 +255,8 @@ in the app (analogous to a route in a web app).
   config-derived pages when it is, so they carry no `None` fallback. `specs.py`
   reads no settings at all — only `self.app.specs_dir` — so it works in every
   config state.
-  `spec_detail.py`, `armature_form.py` and `mesh_roles_form.py` are the named
-  exemptions:
+  `spec_detail.py`, `armature_form.py`, `mesh_roles_form.py` and
+  `mesh_role_form.py` are the named exemptions:
   they are *per spec*, with no app-level "current spec" to read, so they take
   the spec as a constructor argument and are **not** registered in `SCREENS` — the
   `SetupWizard` / `NewSpecModal` shape, minus the return value. Adding a
