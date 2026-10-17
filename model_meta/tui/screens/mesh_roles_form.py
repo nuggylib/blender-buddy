@@ -1,8 +1,10 @@
 """The mesh roles form — add mesh role after mesh role, or open one.
 
 The role list shows read-only, with a cursor. `a` adds: type the role's name,
-then check the required bones its vertex group covers; **Add** writes the
-inferred `vtx_grp` and returns to an empty name for the next one. Enter on a
+then check the required bones its vertex group covers and type the regex naming
+its meshes; **Add** writes the inferred `vtx_grp` and the `mesh_regex` and
+returns to an empty name for the next one. A role without a `mesh_regex` is
+marked in the list. Enter on a
 role pushes `MeshRoleFormScreen`, where that one role's fields are edited; on
 return the cursor follows the role's current name. The rules live in
 `specs.mesh_roles`; this screen only sequences them.
@@ -98,6 +100,9 @@ class MeshRolesFormScreen(Screen):
                     yield Static(
                         "", id="role-preview", classes="config-detail", markup=False
                     )
+                    role_regex = Input(id="role-regex")
+                    role_regex.border_title = "Mesh regex"
+                    yield role_regex
                     yield Button("Add", id="confirm-role", variant="primary")
             yield FieldList(
                 "Mesh roles", _EMPTY, cursor=True, id="role-list", classes="field-list"
@@ -201,6 +206,7 @@ class MeshRolesFormScreen(Screen):
         self._preview()
 
     @on(Button.Pressed, "#confirm-role")
+    @on(Input.Submitted, "#role-regex")
     def _on_confirm(self) -> None:
         self._status("")
         name = self._name
@@ -209,8 +215,14 @@ class MeshRolesFormScreen(Screen):
         pattern = self._infer_or_report()
         if pattern is None:
             return
+        role_regex = self.query_one("#role-regex", Input)
+        regex = role_regex.value.strip()
+        if error := mesh_roles.validate_mesh_regex(regex):
+            self._status(error)
+            role_regex.focus()
+            return
         try:
-            store.add_mesh_role(self.path, name, pattern)
+            store.add_mesh_role(self.path, name, pattern, regex)
         except (OSError, ValueError) as error:
             self._status(f"Could not write the spec: {_reason(error)}")
             return
@@ -282,6 +294,7 @@ class MeshRolesFormScreen(Screen):
         self._name = None
         self.query_one("#role-bones", SelectionList).clear_options()
         self.query_one("#role-preview", Static).update("")
+        self.query_one("#role-regex", Input).value = ""
         self.query_one("#role-bones-question").display = False
 
     def _show_roles(self) -> None:
@@ -290,14 +303,18 @@ class MeshRolesFormScreen(Screen):
             return
         roles = store.mesh_roles(document)
         self._role_names = list(roles)
-        self.query_one("#role-list", FieldList).lines = tuple(
-            line
-            for name, role in roles.items()
-            for line in [
-                (name, 0),
-                *([(f"vtx_grp: {role['vtx_grp']}", 1)] if "vtx_grp" in role else []),
-            ]
-        )
+        lines: list[tuple[str, int]] = []
+        marked: set[int] = set()
+        for name, role in roles.items():
+            lines.append((name, 0))
+            if not role.get("mesh_regex"):
+                marked.add(len(lines))
+            lines.append((f"mesh_regex: {role.get('mesh_regex') or 'not set'}", 1))
+            if "vtx_grp" in role:
+                lines.append((f"vtx_grp: {role['vtx_grp']}", 1))
+        role_list = self.query_one("#role-list", FieldList)
+        role_list.lines = tuple(lines)
+        role_list.marked = frozenset(marked)
 
     def _read(self) -> dict | None:
         try:

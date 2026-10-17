@@ -233,8 +233,10 @@ MeshRoleFormScreen .field-list:focus .field-list-highlighted {
     background: $accent 30%;
 }
 
-/* Rows a rename left unmatched (FieldList.marked), while its warning shows. */
-ArmatureFormScreen .field-list-marked {
+/* Rows flagged as a problem (FieldList.marked): a rename left them unmatched,
+   or a required field is missing. */
+ArmatureFormScreen .field-list-marked, MeshRolesFormScreen .field-list-marked,
+MeshRoleFormScreen .field-list-marked {
     background: $error-muted;
     color: $text-error;
 }

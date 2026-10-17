@@ -150,7 +150,7 @@ def rename_bone(
     _replace(path, document)
 
 
-def add_mesh_role(path: Path, name: str, vtx_grp: str) -> None:
+def add_mesh_role(path: Path, name: str, vtx_grp: str, mesh_regex: str) -> None:
     """Re-read the spec and add one mesh role, touching nothing else.
 
     Raises `ValueError` if `name` is already a role, or like `read`, or
@@ -160,18 +160,24 @@ def add_mesh_role(path: Path, name: str, vtx_grp: str) -> None:
     roles = document.setdefault("mesh_roles", {})
     if name in roles:
         raise ValueError(f"'{name}' is already a mesh role.")
-    roles[name] = {"vtx_grp": vtx_grp}
+    roles[name] = {"mesh_regex": mesh_regex, "vtx_grp": vtx_grp}
     _replace(path, document)
 
 
 def update_mesh_role(
-    path: Path, name: str, new_name: str, vtx_grp: str | None = None
+    path: Path,
+    name: str,
+    new_name: str,
+    vtx_grp: str | None = None,
+    *,
+    mesh_regex: str | None = None,
 ) -> None:
     """Re-read the spec and rename and re-pattern one role, touching nothing else.
 
-    The role keeps its position and its other fields; `vtx_grp=None` keeps its
-    `vtx_grp` too, or its lack of one. Raises `ValueError` if `name` is gone or
-    `new_name` is another role, or like `read`, or `OSError` on write.
+    The role keeps its position and its other fields; a `vtx_grp` or
+    `mesh_regex` of `None` keeps that field too, or its lack of one. Raises
+    `ValueError` if `name` is gone or `new_name` is another role, or like
+    `read`, or `OSError` on write.
     """
     document = read(path)
     roles = mesh_roles(document)
@@ -179,11 +185,14 @@ def update_mesh_role(
         raise ValueError(f"'{name}' is no longer a mesh role.")
     if new_name != name and new_name in roles:
         raise ValueError(f"'{new_name}' is already a mesh role.")
+    changes = {
+        key: value
+        for key, value in (("vtx_grp", vtx_grp), ("mesh_regex", mesh_regex))
+        if value is not None
+    }
     document["mesh_roles"] = {
         (new_name if key == name else key): (
-            {**role, "vtx_grp": vtx_grp}
-            if key == name and vtx_grp is not None
-            else role
+            {**role, **changes} if key == name else role
         )
         for key, role in roles.items()
     }
@@ -246,13 +255,14 @@ def _check_armature(armature: object) -> None:
 
 
 def _check_mesh_roles(roles: object) -> None:
-    """Raise `ValueError` unless every role is an object with a string `vtx_grp`."""
+    """Raise `ValueError` unless every role is an object with string patterns."""
     if not (
         isinstance(roles, dict) and all(isinstance(r, dict) for r in roles.values())
     ):
         raise ValueError("`mesh_roles` is not a map of objects.")
-    if not all(isinstance(r.get("vtx_grp", ""), str) for r in roles.values()):
-        raise ValueError("A mesh role's `vtx_grp` is not a string.")
+    for key in ("vtx_grp", "mesh_regex"):
+        if not all(isinstance(r.get(key, ""), str) for r in roles.values()):
+            raise ValueError(f"A mesh role's `{key}` is not a string.")
 
 
 def _replace(path: Path, document: dict) -> None:

@@ -4,9 +4,11 @@ Pushed from the mesh roles list for one role, and dismissed with the role's
 current name. The name shows read-only at the top; Enter swaps in an Input whose
 Enter renames the role alone. Every other field the role holds is listed below
 as `key: value`, with a muted description beneath where one helps (the bones a
-`vtx_grp` matches). Enter on `vtx_grp`
-opens the required-bones checklist with its matches pre-checked, and **Save**
-writes the inferred pattern alone. Other fields show but can't be edited yet.
+`vtx_grp` matches), the required `mesh_regex` and `vtx_grp` first. Enter on
+`mesh_regex` opens a prefilled Input whose Enter writes it alone; a role
+without one is marked. Enter on `vtx_grp` opens the required-bones checklist
+with its matches pre-checked, and **Save** writes the inferred pattern alone.
+Other fields show but can't be edited yet.
 The rules live in `specs.mesh_roles`; writes go through
 `specs.store.update_mesh_role`.
 """
@@ -30,6 +32,7 @@ from model_meta.specs import mesh_roles, store
 from model_meta.tui.widgets.field_list import FieldList
 
 _NO_BONES = "Add required bones first."
+_REQUIRED = ("mesh_regex", "vtx_grp")
 
 
 class MeshRoleFormScreen(Screen[str]):
@@ -78,7 +81,7 @@ class MeshRoleFormScreen(Screen[str]):
         super().__init__()
         self.path = path
         self.role = name
-        self._editing: Literal["name", "vtx_grp"] | None = None
+        self._editing: Literal["name", "vtx_grp", "mesh_regex"] | None = None
         self._field_names: list[str] = []
 
     def compose(self) -> ComposeResult:
@@ -93,6 +96,9 @@ class MeshRoleFormScreen(Screen[str]):
             yield role_name
             yield Static("", id="role-status", classes="config-detail", markup=False)
         with Vertical(id="role-column"):
+            mesh_regex = Input(id="mesh-regex", classes="editor")
+            mesh_regex.border_title = "mesh_regex"
+            yield mesh_regex
             with Vertical(id="vtx-grp-editor", classes="editor"):
                 yield Static(
                     "", id="role-bones-label", classes="config-detail", markup=False
@@ -148,6 +154,8 @@ class MeshRoleFormScreen(Screen[str]):
         field = self._field_names[event.index]
         if field == "vtx_grp":
             self._edit_vtx_grp()
+        elif field == "mesh_regex":
+            self._edit_mesh_regex()
         else:
             self._status(f"'{field}' can't be edited here yet.")
 
@@ -174,6 +182,21 @@ class MeshRoleFormScreen(Screen[str]):
         if pattern and not checked:
             self._status(f"Its vtx_grp '{pattern}' matches no required bone.")
 
+    def _edit_mesh_regex(self) -> None:
+        document = self._read()
+        if document is None:
+            return
+        role = store.mesh_roles(document).get(self.role)
+        if role is None:
+            self._status(f"'{self.role}' is no longer a mesh role.")
+            return
+        self._close()
+        self._editing = "mesh_regex"
+        mesh_regex = self.query_one("#mesh-regex", Input)
+        mesh_regex.value = role.get("mesh_regex", "")
+        mesh_regex.display = True
+        mesh_regex.focus()
+
     def _close(self) -> None:
         """Hide the open editor, dropping its in-progress state unwritten."""
         if self._editing == "name":
@@ -181,6 +204,9 @@ class MeshRoleFormScreen(Screen[str]):
             view = self.query_one("#role-name-view", FieldList)
             view.display = True
             view.focus()
+        elif self._editing == "mesh_regex":
+            self.query_one("#mesh-regex", Input).display = False
+            self.query_one("#role-fields", FieldList).focus()
         elif self._editing == "vtx_grp":
             self.query_one("#role-bones", SelectionList).clear_options()
             self.query_one("#role-preview", Static).update("")
@@ -209,6 +235,21 @@ class MeshRoleFormScreen(Screen[str]):
         self._show()
         self._status(f"Mesh role '{name}' saved.")
 
+    @on(Input.Submitted, "#mesh-regex")
+    def _on_mesh_regex(self, event: Input.Submitted) -> None:
+        self._status("")
+        regex = event.value.strip()
+        if error := mesh_roles.validate_mesh_regex(regex):
+            self._status(error)
+            return
+        if not self._write(self.role, mesh_regex=regex):
+            return
+        self._saved("mesh_regex")
+
+    @on(Input.Changed, "#mesh-regex")
+    def _on_mesh_regex_changed(self) -> None:
+        self._status("")
+
     @on(SelectionList.SelectedChanged, "#role-bones")
     def _on_bones_changed(self) -> None:
         self._preview()
@@ -223,16 +264,28 @@ class MeshRoleFormScreen(Screen[str]):
             return
         if pattern is None or not self._write(self.role, pattern):
             return
+        self._saved("vtx_grp")
+
+    def _saved(self, field: str) -> None:
+        """Close the editor and re-render with the cursor on `field`."""
         self._close()
         self._show()
         self.query_one("#role-fields", FieldList).highlighted = self._field_names.index(
-            "vtx_grp"
+            field
         )
         self._status(f"Mesh role '{self.role}' saved.")
 
-    def _write(self, new_name: str, vtx_grp: str | None = None) -> bool:
+    def _write(
+        self,
+        new_name: str,
+        vtx_grp: str | None = None,
+        *,
+        mesh_regex: str | None = None,
+    ) -> bool:
         try:
-            store.update_mesh_role(self.path, self.role, new_name, vtx_grp)
+            store.update_mesh_role(
+                self.path, self.role, new_name, vtx_grp, mesh_regex=mesh_regex
+            )
         except (OSError, ValueError) as error:
             self._status(f"Could not write the spec: {_reason(error)}")
             return False
@@ -289,6 +342,9 @@ class MeshRoleFormScreen(Screen[str]):
         self.query_one("#role-name-view", FieldList).lines = ((self.role, 0),)
         self._field_names, lines = _field_lines(role, store.required_bones(document))
         fields.lines = tuple(lines)
+        if not role.get("mesh_regex"):
+            start = lines.index(("mesh_regex: not set", 0))
+            fields.marked = frozenset({start, start + 1})
 
     def _read(self) -> dict | None:
         try:
@@ -307,11 +363,16 @@ class MeshRoleFormScreen(Screen[str]):
 def _field_lines(
     role: dict, required: Sequence[str]
 ) -> tuple[list[str], list[tuple[str, int]]]:
-    """`key: value` per field, any description beneath; `vtx_grp` always shown."""
-    keys = list(role) if "vtx_grp" in role else ["vtx_grp", *role]
+    """`key: value` per field, any description beneath; required fields first."""
+    keys = [*_REQUIRED, *(key for key in role if key not in _REQUIRED)]
     lines: list[tuple[str, int]] = []
     for key in keys:
-        if key == "vtx_grp":
+        if key == "mesh_regex":
+            regex = role.get("mesh_regex")
+            lines.append((f"mesh_regex: {regex or 'not set'}", 0))
+            if not regex:
+                lines.append(("required: the meshes in this role", 1))
+        elif key == "vtx_grp":
             pattern = role.get("vtx_grp")
             lines.append((f"vtx_grp: {pattern or 'not set'}", 0))
             if pattern:
