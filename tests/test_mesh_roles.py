@@ -13,6 +13,36 @@ REQUIRED = [
 ]
 
 
+SUSARM_REGEX = r"(?i)^sus\.?arm\.(?P<pos>front|rear)\.top\.(?P<side>[LR])$"
+
+
+# --- validate_mesh_regex ---------------------------------------------------
+
+
+def test_validate_mesh_regex_accepts_the_susarm_example():
+    assert mesh_roles.validate_mesh_regex(SUSARM_REGEX) is None
+
+
+@pytest.mark.parametrize(
+    ("pattern", "message"),
+    [
+        ("", "Enter a mesh regex."),
+        (
+            "(?i)^sus(",
+            "Not a valid regex: missing ), unterminated subpattern at position 8.",
+        ),
+        (
+            "^a(?i)b",
+            "Not a valid regex: global flags not at the start of the expression"
+            " at position 2.",
+        ),
+    ],
+    ids=["blank", "unbalanced", "mid-pattern-flag"],
+)
+def test_validate_mesh_regex_rejects(pattern, message):
+    assert mesh_roles.validate_mesh_regex(pattern) == message
+
+
 # --- validate_name ---------------------------------------------------------
 
 

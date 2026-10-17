@@ -11,6 +11,8 @@ import pytest
 
 from model_meta.specs import naming, schema, store
 
+SUSARM_REGEX = r"(?i)^sus\.?arm\.(?P<pos>front|rear)\.top\.(?P<side>[LR])$"
+
 # --- vocabulary ------------------------------------------------------------
 
 
@@ -383,6 +385,23 @@ def test_read_raises_oserror_for_a_missing_file(tmp_path):
         store.read(tmp_path / "vehicle.json")
 
 
+def test_read_rejects_a_non_string_mesh_regex(tmp_path):
+    document = schema.skeleton("vehicle")
+    document["mesh_roles"] = {"body": {"vtx_grp": "body", "mesh_regex": 5}}
+    path = _write(tmp_path, "vehicle", document)
+
+    with pytest.raises(ValueError, match="`mesh_regex` is not a string"):
+        store.read(path)
+
+
+def test_read_accepts_a_role_without_a_mesh_regex(tmp_path):
+    document = schema.skeleton("vehicle")
+    document["mesh_roles"] = {"body": {"vtx_grp": "body"}}
+    path = _write(tmp_path, "vehicle", document)
+
+    assert store.mesh_roles(store.read(path)) == {"body": {"vtx_grp": "body"}}
+
+
 # --- update_armature -------------------------------------------------------
 
 
@@ -484,13 +503,15 @@ def test_update_armature_refuses_a_malformed_spec_and_writes_nothing(tmp_path):
 
 def test_add_mesh_role_writes_the_role(tmp_path):
     path = store.create(tmp_path, "vehicle")
-    store.add_mesh_role(path, "susarm_upper", "susarm.{1}.top.{2}")
-    store.add_mesh_role(path, "body", "body")
+    store.add_mesh_role(path, "susarm_upper", "susarm.{1}.top.{2}", SUSARM_REGEX)
+    store.add_mesh_role(path, "body", "body", "^body$")
 
-    assert store.mesh_roles(store.read(path)) == {
-        "susarm_upper": {"vtx_grp": "susarm.{1}.top.{2}"},
-        "body": {"vtx_grp": "body"},
+    after = json.loads(path.read_text(encoding="utf-8"))["mesh_roles"]
+    assert after == {
+        "susarm_upper": {"mesh_regex": SUSARM_REGEX, "vtx_grp": "susarm.{1}.top.{2}"},
+        "body": {"mesh_regex": "^body$", "vtx_grp": "body"},
     }
+    assert list(after["body"]) == ["mesh_regex", "vtx_grp"]
 
 
 def test_add_mesh_role_preserves_every_other_key(tmp_path):
@@ -500,36 +521,36 @@ def test_add_mesh_role_preserves_every_other_key(tmp_path):
     document["hand_added"] = True
     path = _write(tmp_path, "vehicle", document)
 
-    store.add_mesh_role(path, "body", "body")
+    store.add_mesh_role(path, "body", "body", "^body$")
 
     after = json.loads(path.read_text(encoding="utf-8"))
-    document["mesh_roles"]["body"] = {"vtx_grp": "body"}
+    document["mesh_roles"]["body"] = {"mesh_regex": "^body$", "vtx_grp": "body"}
     assert after == document
 
 
 def test_add_mesh_role_rejects_a_duplicate_and_writes_nothing(tmp_path):
     path = store.create(tmp_path, "vehicle")
-    store.add_mesh_role(path, "body", "body")
+    store.add_mesh_role(path, "body", "body", "^body$")
     before = path.read_bytes()
 
     with pytest.raises(ValueError):
-        store.add_mesh_role(path, "body", "root")
+        store.add_mesh_role(path, "body", "root", "^root$")
 
     assert path.read_bytes() == before
 
 
 def test_add_mesh_role_adds_the_key_to_an_older_spec(tmp_path):
     path = _write(tmp_path, "vehicle", {"model_type": "vehicle"})
-    store.add_mesh_role(path, "body", "body")
+    store.add_mesh_role(path, "body", "body", "^body$")
 
     assert json.loads(path.read_text(encoding="utf-8"))["mesh_roles"] == {
-        "body": {"vtx_grp": "body"}
+        "body": {"mesh_regex": "^body$", "vtx_grp": "body"}
     }
 
 
 def test_add_mesh_role_leaves_no_tmp_behind(tmp_path):
     path = store.create(tmp_path, "vehicle")
-    store.add_mesh_role(path, "body", "body")
+    store.add_mesh_role(path, "body", "body", "^body$")
 
     assert sorted(p.name for p in tmp_path.iterdir()) == ["vehicle.json"]
 
@@ -586,6 +607,31 @@ def test_update_mesh_role_without_a_vtx_grp_only_renames(tmp_path):
         "window": {},
     }
     assert after["hand_added"] is True
+
+
+def test_update_mesh_role_writes_the_mesh_regex_alone(tmp_path):
+    path, document = _three_roles(tmp_path)
+    store.update_mesh_role(path, "wheel", "wheel", mesh_regex="^wheel")
+    store.update_mesh_role(path, "glass", "glass", mesh_regex="^glass$")
+
+    after = json.loads(path.read_text(encoding="utf-8"))
+    document["mesh_roles"]["wheel"]["mesh_regex"] = "^wheel"
+    document["mesh_roles"]["glass"] = {"mesh_regex": "^glass$"}
+    assert after == document
+    assert list(after["mesh_roles"]) == ["body", "wheel", "glass"]
+
+
+def test_update_mesh_role_rename_and_re_pattern_keep_the_mesh_regex(tmp_path):
+    path, _ = _three_roles(tmp_path)
+    store.update_mesh_role(path, "wheel", "wheel", mesh_regex="^wheel")
+    store.update_mesh_role(path, "wheel", "tyre")
+    store.update_mesh_role(path, "tyre", "tyre", "wheel.front")
+
+    assert store.mesh_roles(store.read(path))["tyre"] == {
+        "vtx_grp": "wheel.front",
+        "weight": 1.0,
+        "mesh_regex": "^wheel",
+    }
 
 
 @pytest.mark.parametrize(

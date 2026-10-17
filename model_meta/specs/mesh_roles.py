@@ -3,12 +3,15 @@
 A role's `vtx_grp` is a pattern in `parenting`'s syntax — a literal base whose
 dot-segments may be `{n}` placeholders — inferred from checked
 `required_bones` so it matches exactly those. Placeholders are all free for now.
+Its `mesh_regex`, required on new roles, is a Python regex naming the mesh
+objects in the role; nothing ties its groups to the `vtx_grp`.
 
 Pure functions over strings, like `bones`.
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Collection, Mapping, Sequence
 
 from model_meta.specs import bones, parenting
@@ -20,6 +23,18 @@ def validate_name(name: str, existing: Collection[str]) -> str | None:
         return "Enter a role name."
     if name in existing:
         return f"'{name}' is already a mesh role."
+    return None
+
+
+def validate_mesh_regex(pattern: str) -> str | None:
+    """Why `pattern` can't be a `mesh_regex`, or `None`. Pass it trimmed."""
+    if not pattern:
+        return "Enter a mesh regex."
+    try:
+        re.compile(pattern)
+    except re.error as error:
+        where = "" if error.pos is None else f" at position {error.pos}"
+        return f"Not a valid regex: {error.msg}{where}."
     return None
 
 

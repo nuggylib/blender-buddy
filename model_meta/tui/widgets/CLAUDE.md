@@ -69,7 +69,8 @@ in the screen that owns it.
   On: `#role-list`, `#bone-list` and `#role-fields`.
   **`marked`** (a frozenset of *line* indices, so a child line can be marked
   alone) adds `.field-list-marked` to those rows. Assigning `lines` clears it,
-  so set it after them. On: `#parenting-list`.
+  so set it after them. On: `#parenting-list`, `#role-list` and
+  `#role-fields`.
 
 ## Conventions
 - **A widget never navigates.** It names where it leads (`target`) and posts a

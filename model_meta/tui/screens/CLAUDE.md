@@ -158,13 +158,16 @@ in the app (analogous to a route in a web app).
   Never name an attribute `_parent` here — it shadows Textual's `DOMNode._parent`.
 - `mesh_roles_form.py` — `MeshRolesFormScreen(path)`, the form for adding
   mesh roles and opening one. Read-only `#role-list` (a `FieldList` with
-  `cursor=True`: each role, its `vtx_grp` indented). With no `required_bones`
+  `cursor=True`: each role, its `mesh_regex` and `vtx_grp` indented). With no `required_bones`
   Add doesn't open, and `#role-status` says why.
   **Add** (`a`, or Enter on an empty list): Enter in `#role-name` validates
   the name and reveals `#role-bones-question` — a `#role-bones` checklist
   refilled from a fresh read, a live `#role-preview` of
-  `mesh_roles.infer_vtx_grp` (or why none fits), and `#confirm-role` (**Add**),
-  which writes via `add_mesh_role` and returns to an empty `#role-name`.
+  `mesh_roles.infer_vtx_grp` (or why none fits), a required `#role-regex`
+  Input (`validate_mesh_regex`, trimmed), and `#confirm-role` (**Add**, or
+  Enter in `#role-regex`), which writes both via `add_mesh_role` and returns to
+  an empty `#role-name`. Each role's `mesh_regex` is listed before its
+  `vtx_grp`; a missing one is `marked`.
   `escape`: hide the question → clear the name → close → leave.
   **Open** (Enter or a click on a role): a fresh read (a role gone by hand is
   reported, nothing pushed), any Add is discarded unwritten, then
@@ -180,10 +183,15 @@ in the app (analogous to a route in a web app).
   `vtx_grp`; the add rules minus its own name). `#role-fields` (cursor) lists
   every field the role holds as one `key: value` line, with a muted
   description line beneath where one helps (`_field_lines`; the depth-1
-  `.field-list-child` row, `$text-muted`). `vtx_grp` is always listed (`not
-  set` when absent) and described by the bones it `matches`. Enter on `vtx_grp` opens `#vtx-grp-editor`: required bones
-  pre-checked with its matches, live preview, **Save** writes the pattern
-  alone. Other fields say they can't be edited yet. One editor at a time;
+  `.field-list-child` row, `$text-muted`). The required `mesh_regex` and
+  `vtx_grp` are always listed first (`not set` when absent); `vtx_grp` is
+  described by the bones it `matches`, and a missing `mesh_regex` is
+  `marked` red with a `required` line. Enter on `mesh_regex` opens a
+  prefilled `#mesh-regex` Input whose Enter writes it alone
+  (`validate_mesh_regex`, trimmed). Enter on `vtx_grp` opens
+  `#vtx-grp-editor`: required bones pre-checked with its matches, live
+  preview, **Save** writes the pattern alone. Other fields say they can't be
+  edited yet. One editor at a time;
   `escape` closes it unsaved, else leaves. Failures keep text and checks and
   write nothing. `q` shadowed.
 - `blender_detail.py`, `godot_detail.py` — the other two detail screens

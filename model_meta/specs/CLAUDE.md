@@ -39,6 +39,9 @@ disk. **No Textual, no UI.**
   **exactly** the checked bones, else `ValueError` naming why (incl. any extra
   bones it would match). Every `{n}` is free for now. `stale_roles(roles, old,
   new)`: roles whose `vtx_grp` matches `old` but not `new`.
+  `validate_mesh_regex(pattern)`: blank or not compiling under Python `re`,
+  else `None`. A role's `mesh_regex` names its mesh objects; nothing ties its
+  groups to `vtx_grp`.
 - `store.py` — the filesystem: `create(specs_dir, model_type)` writes a new
   skeleton (raising `FileExistsError` rather than overwriting),
   `list_specs(specs_dir)` classifies every spec as `OK` / `UNREADABLE` /
@@ -48,18 +51,21 @@ disk. **No Textual, no UI.**
   `required_bones` / `bone_name_inverses` / `parenting`, or a `mesh_roles` that
   isn't a map of objects with string `vtx_grp`s (`armature_name()` /
   `required_bones()` / `bone_name_inverses()` / `parenting_map()` /
-  `mesh_roles()` default them for older specs). `update_armature(path,
+  `mesh_roles()` default them for older specs). A role may lack `mesh_regex`,
+  but one that holds a non-string is rejected. `update_armature(path,
   add_bones=, set_inverses=, drop_inverses=, object_name=, add_parenting=)`
   re-reads, patches **only**
   those keys (bones deduped, drops before sets, `object_name=None` leaves the
   name alone, parenting merged via `parenting.merge`), and writes
   atomically — hand edits to anything else survive.
-  `add_mesh_role(path, name, vtx_grp)` re-reads, raises `ValueError` on a
-  taken name, and writes only `mesh_roles[name] = {"vtx_grp": …}` the same way.
-  `update_mesh_role(path, name, new_name, vtx_grp)` re-reads, raises
-  `ValueError` when `name` is gone or `new_name` is another role, and rewrites
-  that one role in place — same position, other fields kept; `vtx_grp=None`
-  keeps its `vtx_grp` (or its lack of one), so a rename alone writes no pattern.
+  `add_mesh_role(path, name, vtx_grp, mesh_regex)` re-reads, raises
+  `ValueError` on a taken name, and writes only
+  `mesh_roles[name] = {"mesh_regex": …, "vtx_grp": …}` the same way.
+  `update_mesh_role(path, name, new_name, vtx_grp=None, *, mesh_regex=None)`
+  re-reads, raises `ValueError` when `name` is gone or `new_name` is another
+  role, and rewrites that one role in place — same position, other fields
+  kept; a `None` field is kept as is (or left absent), so each editor writes
+  only its own field.
   `rename_bone(path, name, new_name, set_inverses=)` re-reads, raises
   `ValueError` when `name` is gone or `new_name` is another required bone, and
   replaces it in place, applying `set_inverses`. Parenting and mesh roles are

@@ -44,8 +44,8 @@ def _spec(tmp_path, bones=BONES):
     path = specs_store.create(tmp_path / "specs", "vehicle")
     if bones:
         specs_store.update_armature(path, add_bones=bones)
-    specs_store.add_mesh_role(path, "body", "body")
-    specs_store.add_mesh_role(path, "wheel", "wheel.{1}")
+    specs_store.add_mesh_role(path, "body", "body", "^m$")
+    specs_store.add_mesh_role(path, "wheel", "wheel.{1}", "^m$")
     return path
 
 
@@ -126,10 +126,11 @@ async def test_shows_only_the_role_with_focus_on_its_fields(tmp_path, monkeypatc
         assert _text(app, "#role-title") == "Mesh role — wheel"
         assert _lines(app, "role-name-view") == ["wheel"]
         assert _lines(app, "role-fields") == [
+            "mesh_regex: ^m$",
             "vtx_grp: wheel.{1}",
             "matches wheel.L, wheel.R",
         ]
-        description = app.screen.query("#role-fields .field-list-row")[1]
+        description = app.screen.query("#role-fields .field-list-row")[2]
         assert description.has_class("field-list-child")
         assert _focused_id(app) == "role-fields"
         assert not app.screen.query_one("#role-name").display
@@ -149,8 +150,8 @@ async def test_hand_written_fields_are_listed_but_not_editable(tmp_path, monkeyp
     async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path, "wheel")
         assert _lines(app, "role-fields") == [
-            "vtx_grp: not set",
             "mesh_regex: ^w",
+            "vtx_grp: not set",
             "count: 2",
             "texture_maps: albedo, normal",
             "x: (empty)",
@@ -182,7 +183,7 @@ async def test_rename_writes_the_name_alone(tmp_path, monkeypatch):
         await pilot.pause()
 
         assert _roles(path) == {
-            "body": {"vtx_grp": "body"},
+            "body": {"mesh_regex": "^m$", "vtx_grp": "body"},
             "tyre": {"vtx_grp": "wheel.{1}", "weight": 1.0},
         }
         assert _status(app) == "Mesh role 'tyre' saved."
@@ -241,7 +242,7 @@ async def test_vtx_grp_editor_prefills_and_saves_the_pattern_alone(
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path, "wheel")
-        await _select(pilot, app, "role-fields", 0)
+        await _select(pilot, app, "role-fields", 1)
 
         assert app.screen.query_one("#vtx-grp-editor").display
         assert _text(app, "#role-bones-label") == "Bones for 'wheel'"
@@ -258,12 +259,14 @@ async def test_vtx_grp_editor_prefills_and_saves_the_pattern_alone(
         assert _status(app) == "Mesh role 'wheel' saved."
         assert not app.screen.query_one("#vtx-grp-editor").display
         assert _lines(app, "role-fields") == [
+            "mesh_regex: not set",
+            "required: the meshes in this role",
             "vtx_grp: wheel.L",
             "matches wheel.L",
             "weight: 1.0",
         ]
         assert _focused_id(app) == "role-fields"
-        assert app.screen.query_one("#role-fields").highlighted == 0
+        assert app.screen.query_one("#role-fields").highlighted == 1
 
 
 async def test_a_rejected_selection_keeps_the_editor_open(tmp_path, monkeypatch):
@@ -272,7 +275,7 @@ async def test_a_rejected_selection_keeps_the_editor_open(tmp_path, monkeypatch)
     async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path, "wheel")
         before = path.read_bytes()
-        await _select(pilot, app, "role-fields", 0)
+        await _select(pilot, app, "role-fields", 1)
         app.screen.query_one("#role-bones", SelectionList).deselect_all()
         await pilot.pause()
         await _save(pilot, app)
@@ -294,10 +297,11 @@ async def test_vtx_grp_needs_required_bones(tmp_path, monkeypatch):
     async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path, "wheel")
         assert _lines(app, "role-fields") == [
+            "mesh_regex: ^m$",
             "vtx_grp: wheel.{1}",
             "matches no required bone",
         ]
-        await _select(pilot, app, "role-fields", 0)
+        await _select(pilot, app, "role-fields", 1)
         assert _status(app) == "Add required bones first."
         assert not app.screen.query_one("#vtx-grp-editor").display
 
@@ -308,7 +312,7 @@ async def test_a_pattern_matching_no_bone_says_so(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path, "wheel")
-        await _select(pilot, app, "role-fields", 0)
+        await _select(pilot, app, "role-fields", 1)
         assert _selected(app) == []
         assert _status(app) == "Its vtx_grp 'tyre.{1}' matches no required bone."
 
@@ -319,11 +323,134 @@ async def test_a_role_without_vtx_grp_gets_one_on_save(tmp_path, monkeypatch):
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path, "wheel")
-        await _select(pilot, app, "role-fields", 0)
+        await _select(pilot, app, "role-fields", 1)
         app.screen.query_one("#role-bones", SelectionList).select("body")
         await pilot.pause()
         await _save(pilot, app)
         assert _roles(path)["wheel"] == {"weight": 1.0, "vtx_grp": "body"}
+
+
+# --- mesh_regex ------------------------------------------------------------
+
+
+SUSARM_REGEX = r"(?i)^sus\.?arm\.(?P<pos>front|rear)\.top\.(?P<side>[LR])$"
+
+
+def _marked(app):
+    rows = app.screen.query("#role-fields .field-list-row")
+    return [str(row.render()) for row in rows if row.has_class("field-list-marked")]
+
+
+async def test_a_role_without_a_mesh_regex_is_marked(tmp_path, monkeypatch):
+    path = _spec(tmp_path)
+    _set_role(path, "wheel", {"vtx_grp": "wheel.{1}"})
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path, "wheel")
+        assert _marked(app) == [
+            "mesh_regex: not set",
+            "required: the meshes in this role",
+        ]
+
+        await _select(pilot, app, "role-fields", 0)
+        mesh_regex = app.screen.query_one("#mesh-regex", Input)
+        assert mesh_regex.display
+        assert mesh_regex.value == ""
+        mesh_regex.value = "^wheel"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert _marked(app) == []
+        assert _roles(path)["wheel"] == {"vtx_grp": "wheel.{1}", "mesh_regex": "^wheel"}
+
+
+async def test_mesh_regex_editor_prefills_and_saves_it_alone(tmp_path, monkeypatch):
+    path = _spec(tmp_path)
+    _set_role(
+        path, "wheel", {"mesh_regex": "^w", "vtx_grp": "wheel.{1}", "weight": 1.0}
+    )
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path, "wheel")
+        await _select(pilot, app, "role-fields", 0)
+        mesh_regex = app.screen.query_one("#mesh-regex", Input)
+        assert mesh_regex.display
+        assert mesh_regex.value == "^w"
+        assert _focused_id(app) == "mesh-regex"
+
+        mesh_regex.value = f"  {SUSARM_REGEX} "
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert list(_roles(path)) == ["body", "wheel"]
+        assert _roles(path)["wheel"] == {
+            "mesh_regex": SUSARM_REGEX,
+            "vtx_grp": "wheel.{1}",
+            "weight": 1.0,
+        }
+        assert _status(app) == "Mesh role 'wheel' saved."
+        assert not mesh_regex.display
+        assert _lines(app, "role-fields")[0] == f"mesh_regex: {SUSARM_REGEX}"
+        assert _focused_id(app) == "role-fields"
+        assert app.screen.query_one("#role-fields").highlighted == 0
+
+
+async def test_a_bad_mesh_regex_is_rejected(tmp_path, monkeypatch):
+    path = _spec(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path, "wheel")
+        before = path.read_bytes()
+        await _select(pilot, app, "role-fields", 0)
+        mesh_regex = app.screen.query_one("#mesh-regex", Input)
+
+        cases = [
+            ("  ", "Enter a mesh regex."),
+            (
+                "^a(?i)b",
+                "Not a valid regex: global flags not at the start of the expression"
+                " at position 2.",
+            ),
+        ]
+        for regex, message in cases:
+            mesh_regex.value = regex
+            await pilot.pause()
+            await pilot.press("enter")
+            await pilot.pause()
+            assert _status(app) == message
+            assert mesh_regex.display
+            assert mesh_regex.value == regex
+        assert path.read_bytes() == before
+
+        await pilot.press("x")
+        await pilot.pause()
+        assert _status(app) == ""
+
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not mesh_regex.display
+        assert _focused_id(app) == "role-fields"
+        assert isinstance(app.screen, MeshRoleFormScreen)
+        assert path.read_bytes() == before
+
+
+async def test_opening_another_editor_discards_the_mesh_regex(tmp_path, monkeypatch):
+    path = _spec(tmp_path)
+    app = _app(tmp_path, monkeypatch)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _open(pilot, app, path, "wheel")
+        before = path.read_bytes()
+        await _select(pilot, app, "role-fields", 0)
+        app.screen.query_one("#mesh-regex", Input).value = "^tyre"
+
+        await _select(pilot, app, "role-fields", 1)
+        assert not app.screen.query_one("#mesh-regex").display
+        assert app.screen.query_one("#vtx-grp-editor").display
+
+        await _select(pilot, app, "role-fields", 0)
+        await _select(pilot, app, "role-name-view")
+        assert not app.screen.query_one("#mesh-regex").display
+        assert app.screen.query_one("#role-name").display
+        assert path.read_bytes() == before
 
 
 async def test_one_editor_at_a_time_and_escape_steps_out(tmp_path, monkeypatch):
@@ -333,12 +460,12 @@ async def test_one_editor_at_a_time_and_escape_steps_out(tmp_path, monkeypatch):
     async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path, "wheel", results)
         before = path.read_bytes()
-        await _select(pilot, app, "role-fields", 0)
+        await _select(pilot, app, "role-fields", 1)
         await _select(pilot, app, "role-name-view")
         assert not app.screen.query_one("#vtx-grp-editor").display
         assert app.screen.query_one("#role-name").display
 
-        await _select(pilot, app, "role-fields", 0)
+        await _select(pilot, app, "role-fields", 1)
         assert not app.screen.query_one("#role-name").display
         assert app.screen.query_one("#role-name-view").display
         assert app.screen.query_one("#vtx-grp-editor").display
@@ -369,7 +496,7 @@ async def test_a_role_removed_by_hand_is_reported(tmp_path, monkeypatch):
 
         await pilot.press("escape")
         await pilot.pause()
-        await _select(pilot, app, "role-fields", 0)
+        await _select(pilot, app, "role-fields", 1)
         assert _status(app) == "'wheel' is no longer a mesh role."
         assert not app.screen.query_one("#vtx-grp-editor").display
 
@@ -386,12 +513,16 @@ async def test_q_does_not_quit(tmp_path, monkeypatch):
 
 async def test_markup_looking_text_renders_literally(tmp_path, monkeypatch):
     path = _spec(tmp_path)
-    specs_store.add_mesh_role(path, "arm[L]", "arm[L]")
+    specs_store.add_mesh_role(path, "arm[L]", "arm[L]", "^m$")
     app = _app(tmp_path, monkeypatch)
     async with app.run_test(size=(100, 40)) as pilot:
         await _open(pilot, app, path, "arm[L]")
         assert _text(app, "#role-title") == "Mesh role — arm[L]"
         assert _lines(app, "role-name-view") == ["arm[L]"]
-        assert _lines(app, "role-fields") == ["vtx_grp: arm[L]", "matches arm[L]"]
-        await _select(pilot, app, "role-fields", 0)
+        assert _lines(app, "role-fields") == [
+            "mesh_regex: ^m$",
+            "vtx_grp: arm[L]",
+            "matches arm[L]",
+        ]
+        await _select(pilot, app, "role-fields", 1)
         assert _text(app, "#role-bones-label") == "Bones for 'arm[L]'"
