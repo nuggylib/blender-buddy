@@ -6,7 +6,9 @@ question per segment with no known inverse, then confirm a pre-checked
 checklist of its variants. The bone list has a cursor: `a` adds, and Enter on
 a bone renames it under the same rules, minus the checklist, in one
 `specs.store.rename_bone` write that warns of parenting and mesh roles left
-unmatched, marking those parenting rows red while the warning shows. The name logic lives in `specs.bones`; this screen only sequences it.
+unmatched, marking those parenting rows red while the warning shows. `x` asks
+Yes/No, then deletes only the highlighted bone; its patterns just stop
+matching it. The name logic lives in `specs.bones`; this screen only sequences it.
 
 **Full chain first:** variants are computed only once `next_missing` returns
 `None`, and a bone's pending inverse answers are written together, once.
@@ -23,7 +25,7 @@ from pathlib import Path
 
 from rich.markup import escape
 from rich.text import Text
-from textual import on
+from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
@@ -38,6 +40,7 @@ from textual.widgets import (
 )
 
 from model_meta.specs import bones, mesh_roles, parenting, store
+from model_meta.tui.screens.confirm_modal import ConfirmModal
 from model_meta.tui.widgets.field_list import FieldList
 
 _EMPTY = "No required bones yet."
@@ -88,13 +91,15 @@ class ArmatureFormScreen(Screen):
     leaving never loses work. `escape` closes the name editor unsaved, steps
     back one question mid-bone, clears a non-empty idle bone field (a rename
     closes unsaved instead), closes the editor from an empty one, and leaves
-    when no editor is open. `a` works only from the bone list. `q` is
-    shadowed: the form holds Inputs and a Button.
+    when no editor is open. `a` works only from the bone list, and `x` only
+    from a non-empty one; a confirmed delete closes any open editor unwritten.
+    `q` is shadowed: the form holds Inputs and a Button.
     """
 
     BINDINGS = [
         Binding("escape", "back", "Back"),
         Binding("a", "add_bone", "Add"),
+        Binding("x", "delete_bone", "Delete"),
         Binding("q", "noop", show=False),
     ]
 
@@ -221,9 +226,10 @@ class ArmatureFormScreen(Screen):
     # -- bindings ----------------------------------------------------------
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool:
-        if action == "add_bone":
+        if action in ("add_bone", "delete_bone"):
             focused = self.focused
-            return focused is not None and focused.id == "bone-list"
+            on_list = focused is not None and focused.id == "bone-list"
+            return on_list and (action == "add_bone" or bool(self._bone_names))
         return True
 
     async def action_back(self) -> None:
@@ -263,6 +269,29 @@ class ArmatureFormScreen(Screen):
 
     async def action_add_bone(self) -> None:
         await self._edit("bones")
+
+    def action_delete_bone(self) -> None:
+        index = self.query_one("#bone-list", FieldList).highlighted
+        if index is not None:
+            self._delete_bone(self._bone_names[index])
+
+    @work(exclusive=True, group="delete-bone")
+    async def _delete_bone(self, name: str) -> None:
+        """Ask Yes/No; on Yes, close any editor and delete `name` alone."""
+        if not await self.app.push_screen_wait(ConfirmModal(f"Delete '{name}'?")):
+            return
+        self._status("")
+        await self._close()
+        bone_list = self.query_one("#bone-list", FieldList)
+        try:
+            store.delete_bone(self.path, name)
+        except (OSError, ValueError) as error:
+            self._show_bones()
+            self._status(f"Could not write the spec: {_reason(error)}")
+        else:
+            self._show_bones()
+            self._status(f"Bone '{name}' deleted.")
+        bone_list.focus()
 
     def action_noop(self) -> None:
         """Absorb `q` so the app's global quit can't fire mid-bone."""
@@ -667,6 +696,7 @@ class ArmatureFormScreen(Screen):
             return
         required = store.required_bones(document)
         self._bone_names = list(required)
+        self.refresh_bindings()
         self.query_one("#bone-list", FieldList).lines = tuple(
             (name, 0) for name in required
         )
